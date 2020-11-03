@@ -66,7 +66,7 @@ services:
 
   # CB-Spider
   cb-spider:
-    image: cloudbaristaorg/cb-spider:v0.2.0-20201025
+    image: cloudbaristaorg/cb-spider:v0.2.0-20201008
     container_name: cb-spider
     ports:
       - "1024:1024"
@@ -81,7 +81,7 @@ services:
 
   # CB-Tumblebug
   cb-tumblebug:
-    image: cloudbaristaorg/cb-tumblebug:v0.2.0-20201023
+    image: cloudbaristaorg/cb-tumblebug:v0.2.0-20201019
     container_name: cb-tumblebug
     ports:
       - "1323:1323"
@@ -147,59 +147,38 @@ services:
     volumes:
       - ./data/cb-tumblebug/meta_db:/db
 
-  # CB-Ladybug
-  cb-ladybug:
-    image: cloudbaristaorg/cb-ladybug:v0.2.0-20201021
-    container_name: cb-ladybug
-    ports:
-      - "8080:8080"
-    depends_on:
-      - cb-restapigw
-      - cb-spider
-      - cb-tumblebug
-    volumes:
-      - ./conf/cb-ladybug:/app/conf
-      - ./data/cb-ladybug/meta_db:/app/meta_db/dat
-      - ./data/cb-ladybug/log:/app/log
-    environment:
-#     - CBLOG_ROOT=/app
-#     - CBSTORE_ROOT=/app
-#     - APP_ROOT=/app
-      - SPIDER_URL=http://cb-restapigw:8000/spider
-      - TUMBLEBUG_URL=http://cb-restapigw:8000/tumblebug
-      - BASE_PATH=/ladybug
-      - API_USERNAME=default
-      - API_PASSWORD=default
-
-  # CB-Dragonfly
+ # CB-Dragonfly
   cb-dragonfly:
-    image: cloudbaristaorg/cb-dragonfly:espresso-v0.1-inno-test
+    image: cloudbaristaorg/cb-dragonfly:espresso-v0.1-kafka
     container_name: cb-dragonfly
     volumes:
       - ./conf/cb-dragonfly:/go/src/github.com/cloud-barista/cb-dragonfly/conf
       - ./data/cb-dragonfly/log:/go/src/github.com/cloud-barista/cb-dragonfly/log
     ports:
-      - 8094:8094/udp
       - 9090:9090
     depends_on:
-#     - cb-restapigw
-      - cb-dragonfly-etcd
+      - cb-dragonfly-zookeeper
+      - cb-dragonfly-kafka
       - cb-dragonfly-influxdb
       - cb-dragonfly-kapacitor
     environment:
       - CBSTORE_ROOT=/go/src/github.com/cloud-barista/cb-dragonfly
       - CBLOG_ROOT=/go/src/github.com/cloud-barista/cb-dragonfly
       - CBMON_ROOT=/go/src/github.com/cloud-barista/cb-dragonfly
-#     - DRAGONFLY_INFLUXDB_URL=cb-dragonfly-influxdb:8086
     restart: always
     security_opt:
       - no-new-privileges
+    networks:
+      cb-dragonfly:
+        aliases:
+          - cb-dragonfly
 
-  # InfluxDB for Dragonfly
+  # InfluxDB for CB-Dragonfly
   cb-dragonfly-influxdb:
     image: influxdb:1.8-alpine
     container_name: cb-dragonfly-influxdb
     ports:
+      - 28083:8083
       - 28086:8086
     environment:
       - PRE_CREATE_DB=cbmon
@@ -208,25 +187,52 @@ services:
       - INFLUXDB_ADMIN_PASSWORD=password
       - INFLUXDB_HTTP_AUTH_ENABLED=true
     restart: always
+    networks:
+      cb-dragonfly:
+        aliases:
+          - cb-dragonfly-influxdb
 
-  # etcd for Dragonfly
-  cb-dragonfly-etcd:
-    image: bitnami/etcd:3.3.11
-    container_name: cb-dragonfly-etcd
-    environment:
-      - ALLOW_NONE_AUTHENTICATION=yes
-      - ETCD_ADVERTISE_CLIENT_URLS=http://cb-dragonfly-etcd:2379
+  # zookeeper for CB-Dragonfly
+  cb-dragonfly-zookeeper:
+    image: wurstmeister/zookeeper
+    container_name: cb-dragonfly-zookeeper
     ports:
-      - 2379:2379
-      - 2380:2380
+      - 2181:2181
     restart: always
+    networks:
+      cb-dragonfly:
+        aliases:
+          - cb-dragonfly-zookeeper
 
+  # kafka for CB-Dragonfly
+  cb-dragonfly-kafka:
+    image: wurstmeister/kafka:2.12-2.4.1
+    container_name: cb-dragonfly-kafka
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: cb-dragonfly-kafka
+      KAFKA_PORT: 9092
+      KAFKA_ZOOKEEPER_CONNECT: cb-dragonfly-zookeeper:2181
+      KAFKA_DELETE_TOPIC_ENABLE: "true"
+      KAFKA_LOG_RETENTION_MS: 10000
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 5000
+      KAFKA_MESSAGE_TIMESTAMP_TYPE: LogAppendTime
+      KAFKA_LOG_MESSAGE_TIMESTAMP_TYPE: LogAppendTime
+    volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - 9092:9092
+    restart: always
+    networks:
+      cb-dragonfly:
+        aliases:
+          - cb-dragonfly-kafka
+  
   # Kapacitor for CB-Dragonfly
   cb-dragonfly-kapacitor:
     image: kapacitor:1.5
     container_name: cb-dragonfly-kapacitor
     ports:
-      - 9092:9092
+      - 29092:9092
     environment:
       - KAPACITOR_HOSTNAME=cb-dragonfly-kapacitor
       - KAPACITOR_INFLUXDB_0_URLS_0=http://cb-dragonfly-influxdb:8086
@@ -235,10 +241,13 @@ services:
     depends_on:
       - cb-dragonfly-influxdb
     restart: always
-
+    networks:
+      cb-dragonfly:
+        aliases:
+          - cb-dragonfly-kapacitor
   # CB-Webtool
   cb-webtool:
-    image: cloudbaristaorg/cb-webtool:v0.2.0-20201020
+    image: cloudbaristaorg/cb-webtool:v0.2.0-20201008
     container_name: cb-webtool
     ports:
       - "1234:1234"
@@ -259,14 +268,13 @@ services:
 
   # CB-RESTAPIGW SERVICE
   cb-restapigw:
-    image: cloudbaristaorg/cb-restapigw:v0.2.0-20201022
+    image: cloudbaristaorg/cb-restapigw:v0.2.0-20201012
     container_name: cb-restapigw
     volumes:
       - ./conf/cb-restapigw:/app/conf
 #     - ./data/cb-restapigw/log:/app/log
     ports:
       - "8000:8000"
-      - "8001:8001"
     depends_on:
       - influxdb
       - grafana
@@ -282,3 +290,5 @@ services:
         #      name: cboperator_default
 
 
+networks:
+  cb-dragonfly:
