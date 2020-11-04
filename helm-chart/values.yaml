@@ -5,19 +5,16 @@ cb-dragonfly:
     restNodePort: 30090
     grpcNodePort: 30254
     monitorNodePort: 30094
-  etcd:
-    image:
-      tag: 3.3.11
 
 cb-restapigw:
-  enabled : true
+  enabled : false
   service:
     type: NodePort
     restNodePort: 30080
     webAdminNodePort: 30081    
 
 cb-spider:
-  enabled : true
+  enabled : false
   service:
     type: NodePort
     restNodePort: 31024
@@ -27,7 +24,7 @@ cb-spider:
     size: 1Gi
 
 cb-tumblebug:
-  enabled : true
+  enabled : false
   service:
     type: NodePort
     restNodePort: 31323
@@ -37,7 +34,7 @@ cb-tumblebug:
     size: 1Gi
 
 cb-ladybug:
-  enabled : true
+  enabled : false
   service:
     type: NodePort
     restNodePort: 31080
@@ -47,7 +44,7 @@ cb-ladybug:
     size: 1Gi
 
 cb-webtool:
-  enabled : true
+  enabled : false
   service:
     type: NodePort
     nodePort: 31234    
@@ -55,6 +52,7 @@ cb-webtool:
 # http & nodeport
 # basc auth admin:1234
 # hostPath PV
+
 docker-registry:
   enabled : false
   fullnameOverride: "docker-registry"
@@ -80,7 +78,7 @@ weave-scope:
 
 # sub-chart : grafana
 grafana:
-  enabled: true
+  enabled: false
   adminPassword: "admin"
   testFramework:
     enabled: false
@@ -116,7 +114,7 @@ grafana:
 
 # sub-chart : prometheus
 prometheus:
-  enabled: true
+  enabled: false
   #fullnameOverride: "cloud-barista-prometheus"
   server:
     name: server

@@ -1,0 +1,1543 @@
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/kafka/charts/zookeeper/templates/poddisruptionbudget.yaml
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: cloud-barista-zookeeper
+  labels:
+    app: zookeeper
+    chart: zookeeper-2.1.0
+    release: cloud-barista
+    heritage: Helm
+    component: server
+spec:
+  selector:
+    matchLabels:
+      app: zookeeper
+      release: cloud-barista
+      component: server
+  maxUnavailable: 1
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/zookeeper/templates/poddisruptionbudget.yaml
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: cb-dragonfly-zookeeper
+  labels:
+    app: zookeeper
+    chart: zookeeper-2.1.4
+    release: cloud-barista
+    heritage: Helm
+    component: server
+spec:
+  selector:
+    matchLabels:
+      app: zookeeper
+      release: cloud-barista
+      component: server
+  maxUnavailable: 1
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/influxdb/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cb-dragonfly-influxdb
+  labels:
+    helm.sh/chart: influxdb-4.8.9
+    app.kubernetes.io/name: influxdb
+    app.kubernetes.io/instance: cloud-barista
+    app.kubernetes.io/version: "1.8.0"
+    app.kubernetes.io/managed-by: Helm
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/kapacitor/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cloud-barista-kapacitor
+  namespace: cloud-barista
+  labels:
+    chart: "kapacitor-1.3.1"
+    release: "cloud-barista"
+    heritage: "Helm"
+    app: cloud-barista-kapacitor
+---
+# Source: cloud-barista/charts/cb-dragonfly/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cb-dragonfly
+  labels:
+    helm.sh/chart: cb-dragonfly-0.2.0
+    app.kubernetes.io/name: cb-dragonfly
+    app.kubernetes.io/instance: cloud-barista
+    app.kubernetes.io/version: "espresso-v0.1-kafka"
+    app.kubernetes.io/managed-by: Helm
+---
+# Source: cloud-barista/templates/metric-server/components.yml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: metrics-server
+  namespace: kube-system
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/influxdb/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cb-dragonfly-influxdb
+  labels:
+    helm.sh/chart: influxdb-4.8.9
+    app.kubernetes.io/name: influxdb
+    app.kubernetes.io/instance: cloud-barista
+    app.kubernetes.io/version: "1.8.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  influxdb.conf: |+
+    reporting-disabled = false
+    bind-address = ":8088"
+
+    [meta]
+      dir = "/var/lib/influxdb/meta"
+
+    [data]
+      dir = "/var/lib/influxdb/data"
+      wal-dir = "/var/lib/influxdb/wal"
+
+    [coordinator]
+
+    [retention]
+
+    [shard-precreation]
+
+    [monitor]
+
+    [subscriber]
+
+    [http]
+
+    # TODO: allow multiple graphite listeners
+
+    [[graphite]]
+
+    # TODO: allow multiple collectd listeners with templates
+
+    [[collectd]]
+
+    # TODO: allow multiple opentsdb listeners with templates
+
+    [[opentsdb]]
+
+    # TODO: allow multiple udp listeners with templates
+
+    [[udp]]
+
+    [continuous_queries]
+
+    [logging]
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/kafka/charts/zookeeper/templates/config-script.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloud-barista-zookeeper
+  labels:
+    app: zookeeper
+    chart: zookeeper-2.1.0
+    release: cloud-barista
+    heritage: Helm
+    component: server
+data:
+    ok: |
+      #!/bin/sh
+      echo ruok | nc 127.0.0.1 ${1:-2181}
+
+    ready: |
+      #!/bin/sh
+      echo ruok | nc 127.0.0.1 ${1:-2181}
+
+    run: |
+      #!/bin/bash
+
+      set -a
+      ROOT=$(echo /apache-zookeeper-*)
+
+      ZK_USER=${ZK_USER:-"zookeeper"}
+      ZK_LOG_LEVEL=${ZK_LOG_LEVEL:-"INFO"}
+      ZK_DATA_DIR=${ZK_DATA_DIR:-"/data"}
+      ZK_DATA_LOG_DIR=${ZK_DATA_LOG_DIR:-"/data/log"}
+      ZK_CONF_DIR=${ZK_CONF_DIR:-"/conf"}
+      ZK_CLIENT_PORT=${ZK_CLIENT_PORT:-2181}
+      ZK_SERVER_PORT=${ZK_SERVER_PORT:-2888}
+      ZK_ELECTION_PORT=${ZK_ELECTION_PORT:-3888}
+      ZK_TICK_TIME=${ZK_TICK_TIME:-2000}
+      ZK_INIT_LIMIT=${ZK_INIT_LIMIT:-10}
+      ZK_SYNC_LIMIT=${ZK_SYNC_LIMIT:-5}
+      ZK_HEAP_SIZE=${ZK_HEAP_SIZE:-2G}
+      ZK_MAX_CLIENT_CNXNS=${ZK_MAX_CLIENT_CNXNS:-60}
+      ZK_MIN_SESSION_TIMEOUT=${ZK_MIN_SESSION_TIMEOUT:- $((ZK_TICK_TIME*2))}
+      ZK_MAX_SESSION_TIMEOUT=${ZK_MAX_SESSION_TIMEOUT:- $((ZK_TICK_TIME*20))}
+      ZK_SNAP_RETAIN_COUNT=${ZK_SNAP_RETAIN_COUNT:-3}
+      ZK_PURGE_INTERVAL=${ZK_PURGE_INTERVAL:-0}
+      ID_FILE="$ZK_DATA_DIR/myid"
+      ZK_CONFIG_FILE="$ZK_CONF_DIR/zoo.cfg"
+      LOG4J_PROPERTIES="$ZK_CONF_DIR/log4j.properties"
+      HOST=$(hostname)
+      DOMAIN=`hostname -d`
+      ZOOCFG=zoo.cfg
+      ZOOCFGDIR=$ZK_CONF_DIR
+      JVMFLAGS="-Xmx$ZK_HEAP_SIZE -Xms$ZK_HEAP_SIZE"
+
+      APPJAR=$(echo $ROOT/*jar)
+      CLASSPATH="${ROOT}/lib/*:${APPJAR}:${ZK_CONF_DIR}:"
+
+      if [[ $HOST =~ (.*)-([0-9]+)$ ]]; then
+          NAME=${BASH_REMATCH[1]}
+          ORD=${BASH_REMATCH[2]}
+          MY_ID=$((ORD+1))
+      else
+          echo "Failed to extract ordinal from hostname $HOST"
+          exit 1
+      fi
+
+      mkdir -p $ZK_DATA_DIR
+      mkdir -p $ZK_DATA_LOG_DIR
+      echo $MY_ID >> $ID_FILE
+
+      echo "clientPort=$ZK_CLIENT_PORT" >> $ZK_CONFIG_FILE
+      echo "dataDir=$ZK_DATA_DIR" >> $ZK_CONFIG_FILE
+      echo "dataLogDir=$ZK_DATA_LOG_DIR" >> $ZK_CONFIG_FILE
+      echo "tickTime=$ZK_TICK_TIME" >> $ZK_CONFIG_FILE
+      echo "initLimit=$ZK_INIT_LIMIT" >> $ZK_CONFIG_FILE
+      echo "syncLimit=$ZK_SYNC_LIMIT" >> $ZK_CONFIG_FILE
+      echo "maxClientCnxns=$ZK_MAX_CLIENT_CNXNS" >> $ZK_CONFIG_FILE
+      echo "minSessionTimeout=$ZK_MIN_SESSION_TIMEOUT" >> $ZK_CONFIG_FILE
+      echo "maxSessionTimeout=$ZK_MAX_SESSION_TIMEOUT" >> $ZK_CONFIG_FILE
+      echo "autopurge.snapRetainCount=$ZK_SNAP_RETAIN_COUNT" >> $ZK_CONFIG_FILE
+      echo "autopurge.purgeInterval=$ZK_PURGE_INTERVAL" >> $ZK_CONFIG_FILE
+      echo "4lw.commands.whitelist=*" >> $ZK_CONFIG_FILE
+
+      for (( i=1; i<=$ZK_REPLICAS; i++ ))
+      do
+          echo "server.$i=$NAME-$((i-1)).$DOMAIN:$ZK_SERVER_PORT:$ZK_ELECTION_PORT" >> $ZK_CONFIG_FILE
+      done
+
+      rm -f $LOG4J_PROPERTIES
+
+      echo "zookeeper.root.logger=$ZK_LOG_LEVEL, CONSOLE" >> $LOG4J_PROPERTIES
+      echo "zookeeper.console.threshold=$ZK_LOG_LEVEL" >> $LOG4J_PROPERTIES
+      echo "zookeeper.log.threshold=$ZK_LOG_LEVEL" >> $LOG4J_PROPERTIES
+      echo "zookeeper.log.dir=$ZK_DATA_LOG_DIR" >> $LOG4J_PROPERTIES
+      echo "zookeeper.log.file=zookeeper.log" >> $LOG4J_PROPERTIES
+      echo "zookeeper.log.maxfilesize=256MB" >> $LOG4J_PROPERTIES
+      echo "zookeeper.log.maxbackupindex=10" >> $LOG4J_PROPERTIES
+      echo "zookeeper.tracelog.dir=$ZK_DATA_LOG_DIR" >> $LOG4J_PROPERTIES
+      echo "zookeeper.tracelog.file=zookeeper_trace.log" >> $LOG4J_PROPERTIES
+      echo "log4j.rootLogger=\${zookeeper.root.logger}" >> $LOG4J_PROPERTIES
+      echo "log4j.appender.CONSOLE=org.apache.log4j.ConsoleAppender" >> $LOG4J_PROPERTIES
+      echo "log4j.appender.CONSOLE.Threshold=\${zookeeper.console.threshold}" >> $LOG4J_PROPERTIES
+      echo "log4j.appender.CONSOLE.layout=org.apache.log4j.PatternLayout" >> $LOG4J_PROPERTIES
+      echo "log4j.appender.CONSOLE.layout.ConversionPattern=%d{ISO8601} [myid:%X{myid}] - %-5p [%t:%C{1}@%L] - %m%n" >> $LOG4J_PROPERTIES
+
+      if [ -n "$JMXDISABLE" ]
+      then
+          MAIN=org.apache.zookeeper.server.quorum.QuorumPeerMain
+      else
+          MAIN="-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=$JMXPORT -Dcom.sun.management.jmxremote.authenticate=$JMXAUTH -Dcom.sun.management.jmxremote.ssl=$JMXSSL -Dzookeeper.jmx.log4j.disable=$JMXLOG4J org.apache.zookeeper.server.quorum.QuorumPeerMain"
+      fi
+
+      set -x
+      exec java -cp "$CLASSPATH" $JVMFLAGS $MAIN $ZK_CONFIG_FILE
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/zookeeper/templates/config-script.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cb-dragonfly-zookeeper
+  labels:
+    app: zookeeper
+    chart: zookeeper-2.1.4
+    release: cloud-barista
+    heritage: Helm
+    component: server
+data:
+    ok: |
+      #!/bin/sh
+      zkServer.sh status
+
+    ready: |
+      #!/bin/sh
+      echo ruok | nc 127.0.0.1 ${1:-2181}
+
+    run: |
+      #!/bin/bash
+
+      set -a
+      ROOT=$(echo /apache-zookeeper-*)
+
+      ZK_USER=${ZK_USER:-"zookeeper"}
+      ZK_LOG_LEVEL=${ZK_LOG_LEVEL:-"INFO"}
+      ZK_DATA_DIR=${ZK_DATA_DIR:-"/data"}
+      ZK_DATA_LOG_DIR=${ZK_DATA_LOG_DIR:-"/data/log"}
+      ZK_CONF_DIR=${ZK_CONF_DIR:-"/conf"}
+      ZK_CLIENT_PORT=${ZK_CLIENT_PORT:-2181}
+      ZK_SERVER_PORT=${ZK_SERVER_PORT:-2888}
+      ZK_ELECTION_PORT=${ZK_ELECTION_PORT:-3888}
+      ZK_TICK_TIME=${ZK_TICK_TIME:-2000}
+      ZK_INIT_LIMIT=${ZK_INIT_LIMIT:-10}
+      ZK_SYNC_LIMIT=${ZK_SYNC_LIMIT:-5}
+      ZK_HEAP_SIZE=${ZK_HEAP_SIZE:-2G}
+      ZK_MAX_CLIENT_CNXNS=${ZK_MAX_CLIENT_CNXNS:-60}
+      ZK_MIN_SESSION_TIMEOUT=${ZK_MIN_SESSION_TIMEOUT:- $((ZK_TICK_TIME*2))}
+      ZK_MAX_SESSION_TIMEOUT=${ZK_MAX_SESSION_TIMEOUT:- $((ZK_TICK_TIME*20))}
+      ZK_SNAP_RETAIN_COUNT=${ZK_SNAP_RETAIN_COUNT:-3}
+      ZK_PURGE_INTERVAL=${ZK_PURGE_INTERVAL:-0}
+      ID_FILE="$ZK_DATA_DIR/myid"
+      ZK_CONFIG_FILE="$ZK_CONF_DIR/zoo.cfg"
+      LOG4J_PROPERTIES="$ZK_CONF_DIR/log4j.properties"
+      HOST=$(hostname)
+      DOMAIN=`hostname -d`
+      JVMFLAGS="-Xmx$ZK_HEAP_SIZE -Xms$ZK_HEAP_SIZE"
+
+      APPJAR=$(echo $ROOT/*jar)
+      CLASSPATH="${ROOT}/lib/*:${APPJAR}:${ZK_CONF_DIR}:"
+
+      if [[ $HOST =~ (.*)-([0-9]+)$ ]]; then
+          NAME=${BASH_REMATCH[1]}
+          ORD=${BASH_REMATCH[2]}
+          MY_ID=$((ORD+1))
+      else
+          echo "Failed to extract ordinal from hostname $HOST"
+          exit 1
+      fi
+
+      mkdir -p $ZK_DATA_DIR
+      mkdir -p $ZK_DATA_LOG_DIR
+      echo $MY_ID >> $ID_FILE
+
+      echo "clientPort=$ZK_CLIENT_PORT" >> $ZK_CONFIG_FILE
+      echo "dataDir=$ZK_DATA_DIR" >> $ZK_CONFIG_FILE
+      echo "dataLogDir=$ZK_DATA_LOG_DIR" >> $ZK_CONFIG_FILE
+      echo "tickTime=$ZK_TICK_TIME" >> $ZK_CONFIG_FILE
+      echo "initLimit=$ZK_INIT_LIMIT" >> $ZK_CONFIG_FILE
+      echo "syncLimit=$ZK_SYNC_LIMIT" >> $ZK_CONFIG_FILE
+      echo "maxClientCnxns=$ZK_MAX_CLIENT_CNXNS" >> $ZK_CONFIG_FILE
+      echo "minSessionTimeout=$ZK_MIN_SESSION_TIMEOUT" >> $ZK_CONFIG_FILE
+      echo "maxSessionTimeout=$ZK_MAX_SESSION_TIMEOUT" >> $ZK_CONFIG_FILE
+      echo "autopurge.snapRetainCount=$ZK_SNAP_RETAIN_COUNT" >> $ZK_CONFIG_FILE
+      echo "autopurge.purgeInterval=$ZK_PURGE_INTERVAL" >> $ZK_CONFIG_FILE
+      echo "4lw.commands.whitelist=*" >> $ZK_CONFIG_FILE
+
+      for (( i=1; i<=$ZK_REPLICAS; i++ ))
+      do
+          echo "server.$i=$NAME-$((i-1)).$DOMAIN:$ZK_SERVER_PORT:$ZK_ELECTION_PORT" >> $ZK_CONFIG_FILE
+      done
+
+      rm -f $LOG4J_PROPERTIES
+
+      echo "zookeeper.root.logger=$ZK_LOG_LEVEL, CONSOLE" >> $LOG4J_PROPERTIES
+      echo "zookeeper.console.threshold=$ZK_LOG_LEVEL" >> $LOG4J_PROPERTIES
+      echo "zookeeper.log.threshold=$ZK_LOG_LEVEL" >> $LOG4J_PROPERTIES
+      echo "zookeeper.log.dir=$ZK_DATA_LOG_DIR" >> $LOG4J_PROPERTIES
+      echo "zookeeper.log.file=zookeeper.log" >> $LOG4J_PROPERTIES
+      echo "zookeeper.log.maxfilesize=256MB" >> $LOG4J_PROPERTIES
+      echo "zookeeper.log.maxbackupindex=10" >> $LOG4J_PROPERTIES
+      echo "zookeeper.tracelog.dir=$ZK_DATA_LOG_DIR" >> $LOG4J_PROPERTIES
+      echo "zookeeper.tracelog.file=zookeeper_trace.log" >> $LOG4J_PROPERTIES
+      echo "log4j.rootLogger=\${zookeeper.root.logger}" >> $LOG4J_PROPERTIES
+      echo "log4j.appender.CONSOLE=org.apache.log4j.ConsoleAppender" >> $LOG4J_PROPERTIES
+      echo "log4j.appender.CONSOLE.Threshold=\${zookeeper.console.threshold}" >> $LOG4J_PROPERTIES
+      echo "log4j.appender.CONSOLE.layout=org.apache.log4j.PatternLayout" >> $LOG4J_PROPERTIES
+      echo "log4j.appender.CONSOLE.layout.ConversionPattern=%d{ISO8601} [myid:%X{myid}] - %-5p [%t:%C{1}@%L] - %m%n" >> $LOG4J_PROPERTIES
+
+      if [ -n "$JMXDISABLE" ]
+      then
+          MAIN=org.apache.zookeeper.server.quorum.QuorumPeerMain
+      else
+          MAIN="-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=$JMXPORT -Dcom.sun.management.jmxremote.authenticate=$JMXAUTH -Dcom.sun.management.jmxremote.ssl=$JMXSSL -Dzookeeper.jmx.log4j.disable=$JMXLOG4J org.apache.zookeeper.server.quorum.QuorumPeerMain"
+      fi
+
+      set -x
+      exec java -cp "$CLASSPATH" $JVMFLAGS $MAIN $ZK_CONFIG_FILE
+---
+# Source: cloud-barista/charts/cb-dragonfly/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cb-dragonfly-config
+  labels:
+    helm.sh/chart: cb-dragonfly-0.2.0
+    app.kubernetes.io/name: cb-dragonfly
+    app.kubernetes.io/instance: cloud-barista
+    app.kubernetes.io/version: "espresso-v0.1-kafka"
+    app.kubernetes.io/managed-by: Helm
+data:
+  config.yaml: |-
+    
+    #### Config for cb-dragonfly ####
+    
+    
+    
+    # influxdb connection info
+    
+    influxdb:
+    
+      endpoint_url: http://cb-dragonfly-influxdb # endpoint for influxDB
+    
+      internal_port: 8086
+    
+      external_port: 28086
+    
+      database: cbmon
+    
+      user_name: cbmon
+    
+      password: password
+    
+    
+    
+    # kapacitor connection info
+    
+    kapacitor:
+    
+      endpoint_url: http://cb-dragonfly-kapacitor:9092 # endpoint to kapacitor
+    
+    
+    
+    # kafka connection info
+    
+    kafka:
+    
+      endpoint_url: cb-dragonfly-kafka
+    
+    
+    
+    # collect manager configuration info
+    
+    collectManager:
+    
+      collector_ip: 127.0.0.1 # local access endpoint to cb-dragonfly API server
+    
+      collector_port: 8094    # udp port
+    
+      collector_group_count: 1      # default collector group count
+    
+    
+    
+    # api server configuration info
+    
+    apiServer:
+    
+      port: 9090
+    
+    
+    
+    # monitoring interval configuration info
+    
+    monitoring:
+    
+      agent_interval: 2        # agent interval (s)
+    
+      collector_interval: 10   # aggregate interval (s)
+    
+      max_host_count:  10      # maximum host count per collector
+    
+      monitoring_policy: 0     # 0 => The number of agent, 1 => csp group
+    
+    
+    
+  log_conf.yaml: |-
+    
+    #### Config for CB-Log Lib. ####
+    
+    
+    
+    cblog:
+    
+      ## true | false
+    
+      loopcheck: true # This temp method for development is busy wait. cf) cblogger.go:levelSetupLoop().
+    
+    
+    
+      ## debug | info | warn | error
+    
+      loglevel: info # If loopcheck is true, You can set this online.
+    
+    
+    
+      ## true | false
+    
+      logfile: false
+    
+    
+    
+    ## Config for File Output ##
+    
+    logfileinfo:
+    
+      filename: ./log/cblogs.log
+    
+      maxsize: 10 # megabytes
+    
+      maxbackups: 50
+    
+      maxage: 31 # days
+    
+    
+    
+  setup.env: |-
+    
+    export CBSTORE_ROOT=$GOPATH/src/github.com/cloud-barista/cb-dragonfly
+    
+    export CBLOG_ROOT=$GOPATH/src/github.com/cloud-barista/cb-dragonfly
+    
+    export CBMON_PATH=$GOPATH/src/github.com/cloud-barista/cb-dragonfly
+    
+    
+    
+  store_conf.yaml: |-
+    
+    #### Config for CB-Store ####
+    
+    
+    
+    # server type: NUTSDB | ETCD
+    
+    # NUTSDB: embedded Key-Value Store on Local Filesystem
+    
+    storetype: NUTSDB
+    
+    #storetype: ETCD
+    
+    
+    
+    nutsdb:
+    
+      dbpath: "meta_db/dat"
+    
+      segmentsize: 1048576  # 1048576 1024*1024 (1MB)
+    
+      #segmentsize: 10485760  # 10485760 10*1024*1024 (10MB)
+    
+    
+    
+    etcd:
+    
+      # etcd server, when ETCD typpe
+    
+      etcdserverport: "129.254.175.43:2379"
+---
+# Source: cloud-barista/templates/grafana/datasource.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloud-barista-prometheus-server-grafana-datasource
+  namespace: cloud-barista
+  labels:
+      grafana_datasource: "1"
+      app: cloud-barista-prometheus-server-grafana
+data:
+  datasources.yaml: |-
+    apiVersion: 1
+    datasources:
+    - name: Prometheus
+      type: prometheus
+      access: proxy
+      orgId: 1
+      url: http://cloud-barista-prometheus-server.cloud-barista.svc.cluster.local:9090
+      isDefault: true
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/kapacitor/templates/clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cloud-barista-kapacitor-clusterrole
+  labels:
+    chart: "kapacitor-1.3.1"
+    release: "cloud-barista"
+    heritage: "Helm"
+    app: cloud-barista-kapacitor
+rules: []
+---
+# Source: cloud-barista/templates/metric-server/components.yml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: system:aggregated-metrics-reader
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"
+rules:
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["pods", "nodes"]
+  verbs: ["get", "list", "watch"]
+---
+# Source: cloud-barista/templates/metric-server/components.yml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: system:metrics-server
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - nodes
+  - nodes/stats
+  - namespaces
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/kapacitor/templates/clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cloud-barista-kapacitor-clusterrolebinding
+  labels:
+    chart: "kapacitor-1.3.1"
+    release: "cloud-barista"
+    heritage: "Helm"
+    app: cloud-barista-kapacitor
+subjects:
+  - kind: ServiceAccount
+    name: cloud-barista-kapacitor
+    namespace: cloud-barista
+roleRef:
+  kind: ClusterRole
+  name: cloud-barista-kapacitor-clusterrole
+  apiGroup: rbac.authorization.k8s.io
+---
+# Source: cloud-barista/templates/metric-server/components.yml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: metrics-server:system:auth-delegator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+- kind: ServiceAccount
+  name: metrics-server
+  namespace: kube-system
+---
+# Source: cloud-barista/templates/metric-server/components.yml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: system:metrics-server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:metrics-server
+subjects:
+- kind: ServiceAccount
+  name: metrics-server
+  namespace: kube-system
+---
+# Source: cloud-barista/templates/metric-server/components.yml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: metrics-server-auth-reader
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: extension-apiserver-authentication-reader
+subjects:
+- kind: ServiceAccount
+  name: metrics-server
+  namespace: kube-system
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/influxdb/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: cb-dragonfly-influxdb
+  labels:
+    helm.sh/chart: influxdb-4.8.9
+    app.kubernetes.io/name: influxdb
+    app.kubernetes.io/instance: cloud-barista
+    app.kubernetes.io/version: "1.8.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+  - name: api
+    port: 8086
+    targetPort: api
+  - name: rpc
+    port: 8088
+    targetPort: rpc
+  selector:
+    app.kubernetes.io/name: influxdb
+    app.kubernetes.io/instance: cloud-barista
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/kafka/charts/zookeeper/templates/service-headless.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloud-barista-zookeeper-headless
+  labels:
+    app: zookeeper
+    chart: zookeeper-2.1.0
+    release: cloud-barista
+    heritage: Helm
+spec:
+  clusterIP: None
+  ports:
+    - name: client
+      port: 2181
+      targetPort: client
+      protocol: TCP
+    - name: election
+      port: 3888
+      targetPort: election
+      protocol: TCP
+    - name: server
+      port: 2888
+      targetPort: server
+      protocol: TCP
+  selector:
+    app: zookeeper
+    release: cloud-barista
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/kafka/charts/zookeeper/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloud-barista-zookeeper
+  labels:
+    app: zookeeper
+    chart: zookeeper-2.1.0
+    release: cloud-barista
+    heritage: Helm
+spec:
+  type: ClusterIP
+  ports:
+    - name: client
+      port: 2181
+      protocol: TCP
+      targetPort: client
+  selector:
+    app: zookeeper
+    release: cloud-barista
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/kafka/templates/service-brokers-external.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: "cloud-barista.cluster.local"
+  name: cloud-barista-0-external
+  labels:
+    helm.sh/chart: kafka-0.21.2
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: kafka-broker
+    app.kubernetes.io/name: kafka
+    app.kubernetes.io/instance: cloud-barista
+    pod: "cb-dragonfly-kafka-0"
+spec:
+  type: NodePort
+  ports:
+    - name: external-broker
+      port: 9092
+      targetPort: 31090
+      nodePort: 31090
+      protocol: TCP
+  selector:
+    app.kubernetes.io/component: kafka-broker
+    app.kubernetes.io/name: kafka
+    app.kubernetes.io/instance: cloud-barista
+    statefulset.kubernetes.io/pod-name: "cb-dragonfly-kafka-0"
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/kafka/templates/service-brokers.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: cb-dragonfly-kafka
+  labels:
+    helm.sh/chart: kafka-0.21.2
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: kafka-broker
+    app.kubernetes.io/name: kafka
+    app.kubernetes.io/instance: cloud-barista
+spec:
+  ports:
+  - name: broker
+    port: 9092
+    targetPort: kafka
+  selector:
+    app.kubernetes.io/component: kafka-broker
+    app.kubernetes.io/name: kafka
+    app.kubernetes.io/instance: cloud-barista
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/kafka/templates/service-headless.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: cb-dragonfly-kafka-headless
+  labels:
+    helm.sh/chart: kafka-0.21.2
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: kafka-broker
+    app.kubernetes.io/name: kafka
+    app.kubernetes.io/instance: cloud-barista
+  annotations:
+    service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
+spec:
+  ports:
+  - name: broker
+    port: 9092
+  clusterIP: None
+  selector:
+    app.kubernetes.io/component: kafka-broker
+    app.kubernetes.io/name: kafka
+    app.kubernetes.io/instance: cloud-barista
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/kapacitor/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloud-barista-kapacitor
+  labels:
+    chart: "kapacitor-1.3.1"
+    release: "cloud-barista"
+    heritage: "Helm"
+    app: cloud-barista-kapacitor
+spec:
+  type: ClusterIP
+  ports:
+  - port: 9092
+    targetPort: 9092
+    name: api
+  selector:
+    app: cloud-barista-kapacitor
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/zookeeper/templates/service-headless.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: cb-dragonfly-zookeeper-headless
+  labels:
+    app: zookeeper
+    chart: zookeeper-2.1.4
+    release: cloud-barista
+    heritage: Helm
+spec:
+  clusterIP: None
+  ports:
+    - name: client
+      port: 2181
+      targetPort: client
+      protocol: TCP
+    - name: election
+      port: 3888
+      targetPort: election
+      protocol: TCP
+    - name: server
+      port: 2888
+      targetPort: server
+      protocol: TCP
+  selector:
+    app: zookeeper
+    release: cloud-barista
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/zookeeper/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: cb-dragonfly-zookeeper
+  labels:
+    app: zookeeper
+    chart: zookeeper-2.1.4
+    release: cloud-barista
+    heritage: Helm
+spec:
+  type: ClusterIP
+  ports:
+    - name: client
+      port: 2181
+      protocol: TCP
+      targetPort: client
+  selector:
+    app: zookeeper
+    release: cloud-barista
+---
+# Source: cloud-barista/charts/cb-dragonfly/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: cb-dragonfly
+  labels:
+    helm.sh/chart: cb-dragonfly-0.2.0
+    app.kubernetes.io/name: cb-dragonfly
+    app.kubernetes.io/instance: cloud-barista
+    app.kubernetes.io/version: "espresso-v0.1-kafka"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: NodePort  
+  ports:
+    - port: 9090
+      protocol: TCP
+      name: rest
+      targetPort: 9090
+      nodePort: 30090
+    - port: 50254
+      protocol: TCP
+      name: grpc
+      targetPort: 50254
+      nodePort: 30254
+    - port: 8094
+      protocol: UDP
+      name: monitor
+      targetPort: 8094
+      nodePort: 30094
+  selector:
+    app.kubernetes.io/name: cb-dragonfly
+    app.kubernetes.io/instance: cloud-barista
+---
+# Source: cloud-barista/templates/metric-server/components.yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: metrics-server
+  namespace: kube-system
+  labels:
+    kubernetes.io/name: "Metrics-server"
+    kubernetes.io/cluster-service: "true"
+spec:
+  selector:
+    k8s-app: metrics-server
+  ports:
+  - port: 443
+    protocol: TCP
+    targetPort: main-port
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/kapacitor/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud-barista-kapacitor
+  namespace: cloud-barista
+  labels:
+    chart: "kapacitor-1.3.1"
+    release: "cloud-barista"
+    heritage: "Helm"
+    app: cloud-barista-kapacitor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloud-barista-kapacitor
+  template:
+    metadata:
+      labels:
+        app: cloud-barista-kapacitor
+    spec:
+      serviceAccountName: cloud-barista-kapacitor
+      containers:
+      - name: kapacitor
+        image: "kapacitor:1.5.4-alpine"
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: KAPACITOR_HOSTNAME
+          value: cloud-barista-kapacitor.cloud-barista
+        - name: KAPACITOR_INFLUXDB_0_URLS_0
+          value: http://cb-dragonfly-influxdb:8086
+        - name: KAPACITOR_INFLUXDB_0_PASSWORD
+          value: "password"
+        - name: KAPACITOR_INFLUXDB_0_USERNAME
+          value: "cbmon"
+        ports:
+        - containerPort: 9092
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/kapacitor
+        resources:
+            limits:
+              cpu: 2
+              memory: 2Gi
+            requests:
+              cpu: 0.1
+              memory: 256Mi
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+# Source: cloud-barista/charts/cb-dragonfly/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cb-dragonfly
+  labels:
+    helm.sh/chart: cb-dragonfly-0.2.0
+    app.kubernetes.io/name: cb-dragonfly
+    app.kubernetes.io/instance: cloud-barista
+    app.kubernetes.io/version: "espresso-v0.1-kafka"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cb-dragonfly
+      app.kubernetes.io/instance: cloud-barista
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cb-dragonfly
+        app.kubernetes.io/instance: cloud-barista
+    spec:
+      serviceAccountName: cb-dragonfly
+      securityContext:
+        {}
+      containers:
+        - name: cb-dragonfly
+          securityContext:
+            {}
+          image: "cloudbaristaorg/cb-dragonfly:espresso-v0.1-kafka"
+          #ports:
+          #  - name: http
+          #    containerPort: 80
+          #    protocol: TCP
+          # livenessProbe:
+          #   httpGet:
+          #     path: /
+          #     port: http
+          # readinessProbe:
+          #   httpGet:
+          #     path: /
+          #     port: http
+          resources:
+            {}
+          volumeMounts:
+          - name: config-volume
+            mountPath: /go/src/github.com/cloud-barista/cb-dragonfly/conf
+      volumes:
+      - name: config-volume
+        configMap:
+          name: cb-dragonfly-config
+---
+# Source: cloud-barista/templates/metric-server/components.yml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: metrics-server
+  namespace: kube-system
+  labels:
+    k8s-app: metrics-server
+spec:
+  selector:
+    matchLabels:
+      k8s-app: metrics-server
+  template:
+    metadata:
+      name: metrics-server
+      labels:
+        k8s-app: metrics-server
+    spec:
+      serviceAccountName: metrics-server
+      volumes:
+      # mount in tmp so we can safely use from-scratch images and/or read-only containers
+      - name: tmp-dir
+        emptyDir: {}
+      containers:
+      - name: metrics-server
+        image: k8s.gcr.io/metrics-server/metrics-server:v0.3.7
+        imagePullPolicy: IfNotPresent
+        args:
+          - --cert-dir=/tmp
+          - --secure-port=4443
+          - --kubelet-insecure-tls
+          - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+        ports:
+        - name: main-port
+          containerPort: 4443
+          protocol: TCP
+        securityContext:
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - name: tmp-dir
+          mountPath: /tmp
+      nodeSelector:
+        kubernetes.io/os: linux
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/influxdb/templates/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cb-dragonfly-influxdb
+  labels:
+    helm.sh/chart: influxdb-4.8.9
+    app.kubernetes.io/name: influxdb
+    app.kubernetes.io/instance: cloud-barista
+    app.kubernetes.io/version: "1.8.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: influxdb
+      app.kubernetes.io/instance: cloud-barista
+  serviceName: "cb-dragonfly-influxdb"
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: influxdb
+        app.kubernetes.io/instance: cloud-barista
+    spec:
+      serviceAccountName: cb-dragonfly-influxdb
+      containers:
+      - name: cb-dragonfly-influxdb
+        image: "influxdb:1.8.0-alpine"
+        imagePullPolicy: "IfNotPresent"
+        resources:
+          {}
+        ports:
+        - name: api
+          containerPort: 8086
+        - name: rpc
+          containerPort: 8088
+        livenessProbe:
+          httpGet:
+            path: /ping
+            port: api
+            scheme: HTTP
+          initialDelaySeconds: 30
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: api
+            scheme: HTTP
+          initialDelaySeconds: 5
+          timeoutSeconds: 1
+        volumeMounts:
+        - name: cb-dragonfly-influxdb-data
+          mountPath: /var/lib/influxdb
+        - name: config
+          mountPath: /etc/influxdb
+      volumes:
+      - name: config
+        configMap:
+          name: cb-dragonfly-influxdb
+      - name: cb-dragonfly-influxdb-data
+        emptyDir: {}
+      # Cannot use existing claim in enterprise mode
+  # Must use volume claim template in enterprise mode
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/kafka/charts/zookeeper/templates/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cloud-barista-zookeeper
+  labels:
+    app: zookeeper
+    chart: zookeeper-2.1.0
+    release: cloud-barista
+    heritage: Helm
+    component: server
+spec:
+  serviceName: cloud-barista-zookeeper-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app: zookeeper
+      release: cloud-barista
+      component: server
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: zookeeper
+        release: cloud-barista
+        component: server
+    spec:
+      terminationGracePeriodSeconds: 1800
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+      containers:
+
+        - name: zookeeper
+          image: "zookeeper:3.5.5"
+          imagePullPolicy: IfNotPresent
+          command: 
+             - "/bin/bash"
+             - "-xec"
+             - "/config-scripts/run"
+          ports:
+            - name: client
+              containerPort: 2181
+              protocol: TCP
+            - name: election
+              containerPort: 3888
+              protocol: TCP
+            - name: server
+              containerPort: 2888
+              protocol: TCP
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - /config-scripts/ok
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 2
+            successThreshold: 1
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - /config-scripts/ready
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 2
+            successThreshold: 1
+          env:
+            - name: ZK_REPLICAS
+              value: "3"
+            - name: JMXAUTH
+              value: "false"
+            - name: JMXDISABLE
+              value: "false"
+            - name: JMXPORT
+              value: "1099"
+            - name: JMXSSL
+              value: "false"
+            - name: ZK_HEAP_SIZE
+              value: "1G"
+            - name: ZK_SYNC_LIMIT
+              value: "10"
+            - name: ZK_TICK_TIME
+              value: "2000"
+            - name: ZOO_AUTOPURGE_PURGEINTERVAL
+              value: "0"
+            - name: ZOO_AUTOPURGE_SNAPRETAINCOUNT
+              value: "3"
+            - name: ZOO_INIT_LIMIT
+              value: "5"
+            - name: ZOO_MAX_CLIENT_CNXNS
+              value: "60"
+            - name: ZOO_PORT
+              value: "2181"
+            - name: ZOO_STANDALONE_ENABLED
+              value: "false"
+            - name: ZOO_TICK_TIME
+              value: "2000"
+          resources:
+            {}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /config-scripts
+      volumes:
+        - name: config
+          configMap:
+            name: cloud-barista-zookeeper
+            defaultMode: 0555
+        - name: data
+          emptyDir: {}
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/kafka/templates/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cb-dragonfly-kafka
+  labels:
+    helm.sh/chart: kafka-0.21.2
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: kafka-broker
+    app.kubernetes.io/name: kafka
+    app.kubernetes.io/instance: cloud-barista
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: kafka-broker
+      app.kubernetes.io/name: kafka
+      app.kubernetes.io/instance: cloud-barista
+  serviceName: cb-dragonfly-kafka-headless
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: OnDelete
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: kafka-0.21.2
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/component: kafka-broker
+        app.kubernetes.io/name: kafka
+        app.kubernetes.io/instance: cloud-barista
+    spec:
+      containers:
+      - name: kafka-broker
+        image: "confluentinc/cp-kafka:5.0.1"
+        imagePullPolicy: "IfNotPresent"
+        livenessProbe:
+          exec:
+            command:
+              - sh
+              - -ec
+              - /usr/bin/jps | /bin/grep -q SupportedKafka
+          initialDelaySeconds: 30
+          timeoutSeconds: 5
+        readinessProbe:
+          tcpSocket:
+            port: kafka
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        ports:
+        - containerPort: 9092
+          name: kafka
+        - containerPort: 31090
+          name: external-0
+        resources:
+          {}
+        env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: KAFKA_HEAP_OPTS
+          value: -Xmx1G -Xms1G
+        - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+          value: "1"
+        - name: KAFKA_ZOOKEEPER_CONNECT
+          value: "cloud-barista-zookeeper:2181"
+        - name: KAFKA_LOG_DIRS
+          value: "/opt/kafka/data/logs"
+        - name: "KAFKA_KAFKA_ADVERTISED_LISTENERS"
+          value: "cb-dragonfly-kafka"
+        - name: "KAFKA_KAFKA_DELETE_TOPIC_ENABLE"
+          value: "true"
+        - name: "KAFKA_KAFKA_LOG_MESSAGE_TIMESTAMP_TYPE"
+          value: "LogAppendTime"
+        - name: "KAFKA_KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS"
+          value: "5000"
+        - name: "KAFKA_KAFKA_LOG_RETENTION_MS"
+          value: "10000"
+        - name: "KAFKA_KAFKA_MESSAGE_TIMESTAMP_TYPE"
+          value: "LogAppendTime"
+        - name: "KAFKA_KAFKA_ZOOKEEPER_CONNECT"
+          value: "cb-dragonfly-zookeeper:2181"
+        - name: "KAFKA_CONFLUENT_SUPPORT_METRICS_ENABLE"
+          value: "false"
+        - name: KAFKA_JMX_PORT
+          value: "5555"
+        # This is required because the Downward API does not yet support identification of
+        # pod numbering in statefulsets. Thus, we are required to specify a command which
+        # allows us to extract the pod ID for usage as the Kafka Broker ID.
+        # See: https://github.com/kubernetes/kubernetes/issues/31218
+        command:
+        - sh
+        - -exc
+        - |
+          unset KAFKA_PORT && \
+          export KAFKA_BROKER_ID=${POD_NAME##*-} && \
+          export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://${POD_IP}:9092 && \
+          exec /etc/confluent/docker/run
+        volumeMounts:
+        - name: datadir
+          mountPath: "/opt/kafka/data"
+      volumes:
+      - name: datadir
+        emptyDir: {}
+      terminationGracePeriodSeconds: 60
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/zookeeper/templates/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cb-dragonfly-zookeeper
+  labels:
+    app: zookeeper
+    chart: zookeeper-2.1.4
+    release: cloud-barista
+    heritage: Helm
+    component: server
+spec:
+  serviceName: cb-dragonfly-zookeeper-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zookeeper
+      release: cloud-barista
+      component: server
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: zookeeper
+        release: cloud-barista
+        component: server
+    spec:
+      terminationGracePeriodSeconds: 1800
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+      containers:
+
+        - name: zookeeper
+          image: "zookeeper:3.5.5"
+          imagePullPolicy: IfNotPresent
+          command: 
+             - "/bin/bash"
+             - "-xec"
+             - "/config-scripts/run"
+          ports:
+            - name: client
+              containerPort: 2181
+              protocol: TCP
+            - name: election
+              containerPort: 3888
+              protocol: TCP
+            - name: server
+              containerPort: 2888
+              protocol: TCP
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - /config-scripts/ok
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 2
+            successThreshold: 1
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - /config-scripts/ready
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 2
+            successThreshold: 1
+          env:
+            - name: ZK_REPLICAS
+              value: "1"
+            - name: JMXAUTH
+              value: "false"
+            - name: JMXDISABLE
+              value: "false"
+            - name: JMXPORT
+              value: "1099"
+            - name: JMXSSL
+              value: "false"
+            - name: ZK_SYNC_LIMIT
+              value: "10"
+            - name: ZK_TICK_TIME
+              value: "2000"
+            - name: ZOO_AUTOPURGE_PURGEINTERVAL
+              value: "0"
+            - name: ZOO_AUTOPURGE_SNAPRETAINCOUNT
+              value: "1"
+            - name: ZOO_INIT_LIMIT
+              value: "5"
+            - name: ZOO_MAX_CLIENT_CNXNS
+              value: "60"
+            - name: ZOO_PORT
+              value: "2181"
+            - name: ZOO_STANDALONE_ENABLED
+              value: "false"
+            - name: ZOO_TICK_TIME
+              value: "2000"
+          resources:
+            {}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /config-scripts
+      volumes:
+        - name: config
+          configMap:
+            name: cb-dragonfly-zookeeper
+            defaultMode: 0555
+        - name: data
+          emptyDir: {}
+---
+# Source: cloud-barista/templates/metric-server/components.yml
+apiVersion: apiregistration.k8s.io/v1beta1
+kind: APIService
+metadata:
+  name: v1beta1.metrics.k8s.io
+spec:
+  service:
+    name: metrics-server
+    namespace: kube-system
+  group: metrics.k8s.io
+  version: v1beta1
+  insecureSkipTLSVerify: true
+  groupPriorityMinimum: 100
+  versionPriority: 100
+---
+# Source: cloud-barista/templates/grafana/dashboards.yaml
+apiVersion: v1
+kind: ConfigMapList
+items:
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: cloud-barista-dashboard
+    namespace: cloud-barista
+    labels:
+      grafana_dashboard: "1"
+      app: cloud-barista-grafana
+      helm.sh/chart: cloud-barista-0.2.0
+      app.kubernetes.io/name: cloud-barista
+      app.kubernetes.io/instance: cloud-barista
+      app.kubernetes.io/version: "0.2.0"
+      app.kubernetes.io/managed-by: Helm
+  data:
+    dashboard.json: "{\n  \"annotations\": {\n    \"list\": [\n      {\n        \"builtIn\": 1,\n        \"datasource\": \"-- Grafana --\",\n        \"enable\": true,\n        \"hide\": true,\n        \"iconColor\": \"rgba(0, 211, 255, 1)\",\n        \"name\": \"Annotations \u0026 Alerts\",\n        \"type\": \"dashboard\"\n      }\n    ]\n  },\n  \"editable\": true,\n  \"gnetId\": null,\n  \"graphTooltip\": 0,\n  \"iteration\": 1603454961857,\n  \"links\": [],\n  \"panels\": [\n    {\n      \"collapsed\": false,\n      \"datasource\": null,\n      \"gridPos\": {\n        \"h\": 1,\n        \"w\": 24,\n        \"x\": 0,\n        \"y\": 0\n      },\n      \"id\": 30,\n      \"panels\": [],\n      \"title\": \"Total Usage\",\n      \"type\": \"row\"\n    },\n    {\n      \"datasource\": \"Prometheus\",\n      \"fieldConfig\": {\n        \"defaults\": {\n          \"custom\": {},\n          \"decimals\": 1,\n          \"mappings\": [\n            {\n              \"from\": \"\",\n              \"id\": 0,\n              \"text\": \"N/A\",\n              \"to\": \"\",\n              \"type\": 1,\n              \"value\": \"null\"\n            }\n          ],\n          \"max\": 100,\n          \"min\": 0,\n          \"thresholds\": {\n            \"mode\": \"absolute\",\n            \"steps\": [\n              {\n                \"color\": \"green\",\n                \"value\": null\n              },\n              {\n                \"color\": \"orange\",\n                \"value\": 65\n              },\n              {\n                \"color\": \"red\",\n                \"value\": 90\n              }\n            ]\n          },\n          \"unit\": \"percent\"\n        },\n        \"overrides\": []\n      },\n      \"gridPos\": {\n        \"h\": 5,\n        \"w\": 12,\n        \"x\": 0,\n        \"y\": 1\n      },\n      \"id\": 2,\n      \"options\": {\n        \"reduceOptions\": {\n          \"calcs\": [\n            \"lastNotNull\"\n          ],\n          \"fields\": \"\",\n          \"values\": false\n        },\n        \"showThresholdLabels\": false,\n        \"showThresholdMarkers\": true\n      },\n      \"pluginVersion\": \"7.2.1\",\n      \"targets\": [\n        {\n          \"expr\": \"sum (container_memory_working_set_bytes{id=\\\"/\\\",node=~\\\"^$Node$\\\"}) / sum (machine_memory_bytes{node=~\\\"^$Node$\\\"}) * 100\",\n          \"interval\": \"\",\n          \"legendFormat\": \"메모리 사용률\",\n          \"refId\": \"A\"\n        },\n        {\n          \"expr\": \"sum(kube_pod_container_resource_requests_memory_bytes{node=~\\\"^$Node$\\\"}) / sum(kube_node_status_capacity_memory_bytes{node=~\\\"^$Node$\\\"}) * 100\",\n          \"interval\": \"\",\n          \"legendFormat\": \"메모리 요청률\",\n          \"refId\": \"B\"\n        },\n        {\n          \"expr\": \"sum(kube_pod_container_resource_limits_memory_bytes{node=~\\\"^$Node$\\\"}) / sum(kube_node_status_capacity_memory_bytes{node=~\\\"^$Node$\\\"}) * 100\",\n          \"interval\": \"\",\n          \"legendFormat\": \"메모리 제한률\",\n          \"refId\": \"C\"\n        }\n      ],\n      \"timeFrom\": null,\n      \"timeShift\": null,\n      \"title\": \"Cluster memory usage\",\n      \"type\": \"gauge\"\n    },\n    {\n      \"datasource\": \"Prometheus\",\n      \"fieldConfig\": {\n        \"defaults\": {\n          \"custom\": {},\n          \"decimals\": 1,\n          \"mappings\": [\n            {\n              \"from\": \"\",\n              \"id\": 0,\n              \"text\": \"N/A\",\n              \"to\": \"\",\n              \"type\": 1,\n              \"value\": \"null\"\n            }\n          ],\n          \"max\": 100,\n          \"min\": 0,\n          \"thresholds\": {\n            \"mode\": \"absolute\",\n            \"steps\": [\n              {\n                \"color\": \"green\",\n                \"value\": null\n              },\n              {\n                \"color\": \"orange\",\n                \"value\": 70\n              },\n              {\n                \"color\": \"red\",\n                \"value\": 90\n              }\n            ]\n          },\n          \"unit\": \"percent\"\n        },\n        \"overrides\": []\n      },\n      \"gridPos\": {\n        \"h\": 5,\n        \"w\": 12,\n        \"x\": 12,\n        \"y\": 1\n      },\n      \"id\": 8,\n      \"options\": {\n        \"reduceOptions\": {\n          \"calcs\": [\n            \"lastNotNull\"\n          ],\n          \"fields\": \"\",\n          \"values\": false\n        },\n        \"showThresholdLabels\": false,\n        \"showThresholdMarkers\": true\n      },\n      \"pluginVersion\": \"7.2.1\",\n      \"targets\": [\n        {\n          \"expr\": \"sum (rate(container_cpu_usage_seconds_total{id=\\\"/\\\",node=~\\\"^$Node$\\\"}[$Interval])) / sum (machine_cpu_cores{node=~\\\"^$Node$\\\"}) * 100\",\n          \"interval\": \"\",\n          \"legendFormat\": \"CPU 사용률\",\n          \"refId\": \"A\"\n        },\n        {\n          \"expr\": \"sum(kube_pod_container_resource_requests_cpu_cores{node=~\\\"^$Node$\\\"}) / sum(kube_node_status_allocatable_cpu_cores{node=~\\\"^$Node$\\\"}) * 100\",\n          \"interval\": \"\",\n          \"legendFormat\": \"CPU 요청률\",\n          \"refId\": \"B\"\n        },\n        {\n          \"expr\": \"sum(kube_pod_container_resource_limits_cpu_cores{node=~\\\"^$Node$\\\"}) / sum(kube_node_status_allocatable_cpu_cores{node=~\\\"^$Node$\\\"}) * 100\",\n          \"interval\": \"\",\n          \"legendFormat\": \"CPU 제한률\",\n          \"refId\": \"C\"\n        }\n      ],\n      \"timeFrom\": null,\n      \"timeShift\": null,\n      \"title\": \"Cluster cpu usage(2m avg)\",\n      \"type\": \"gauge\"\n    },\n    {\n      \"datasource\": \"Prometheus\",\n      \"fieldConfig\": {\n        \"defaults\": {\n          \"custom\": {},\n          \"decimals\": 2,\n          \"mappings\": [\n            {\n              \"from\": \"\",\n              \"id\": 0,\n              \"text\": \"N/A\",\n              \"to\": \"\",\n              \"type\": 1,\n              \"value\": \"null\"\n            }\n          ],\n          \"thresholds\": {\n            \"mode\": \"absolute\",\n            \"steps\": [\n              {\n                \"color\": \"rgb(255, 255, 255)\",\n                \"value\": null\n              }\n            ]\n          },\n          \"unit\": \"bytes\"\n        },\n        \"overrides\": []\n      },\n      \"gridPos\": {\n        \"h\": 2,\n        \"w\": 3,\n        \"x\": 0,\n        \"y\": 6\n      },\n      \"id\": 6,\n      \"options\": {\n        \"colorMode\": \"value\",\n        \"graphMode\": \"none\",\n        \"justifyMode\": \"center\",\n        \"orientation\": \"vertical\",\n        \"reduceOptions\": {\n          \"calcs\": [\n            \"lastNotNull\"\n          ],\n          \"fields\": \"\",\n          \"values\": false\n        },\n        \"textMode\": \"value\"\n      },\n      \"pluginVersion\": \"7.2.1\",\n      \"targets\": [\n        {\n          \"expr\": \"sum (container_memory_working_set_bytes{id=\\\"/\\\",kubernetes_io_hostname=~\\\"^$Node$\\\"})\",\n          \"interval\": \"\",\n          \"legendFormat\": \"Used\",\n          \"refId\": \"A\"\n        }\n      ],\n      \"timeFrom\": null,\n      \"timeShift\": null,\n      \"title\": \"Used\",\n      \"type\": \"stat\"\n    },\n    {\n      \"datasource\": \"Prometheus\",\n      \"fieldConfig\": {\n        \"defaults\": {\n          \"custom\": {},\n          \"decimals\": 2,\n          \"mappings\": [\n            {\n              \"from\": \"\",\n              \"id\": 0,\n              \"text\": \"N/A\",\n              \"to\": \"\",\n              \"type\": 1,\n              \"value\": \"null\"\n            }\n          ],\n          \"thresholds\": {\n            \"mode\": \"absolute\",\n            \"steps\": [\n              {\n                \"color\": \"rgb(255, 255, 255)\",\n                \"value\": null\n              }\n            ]\n          },\n          \"unit\": \"bytes\"\n        },\n        \"overrides\": []\n      },\n      \"gridPos\": {\n        \"h\": 2,\n        \"w\": 3,\n        \"x\": 3,\n        \"y\": 6\n      },\n      \"id\": 21,\n      \"options\": {\n        \"colorMode\": \"value\",\n        \"graphMode\": \"none\",\n        \"justifyMode\": \"center\",\n        \"orientation\": \"vertical\",\n        \"reduceOptions\": {\n          \"calcs\": [\n            \"lastNotNull\"\n          ],\n          \"fields\": \"\",\n          \"values\": false\n        },\n        \"textMode\": \"value\"\n      },\n      \"pluginVersion\": \"7.2.1\",\n      \"targets\": [\n        {\n          \"expr\": \"sum(kube_pod_container_resource_requests_memory_bytes{node=~\\\"^$Node$\\\"})\",\n          \"interval\": \"\",\n          \"legendFormat\": \"Requests\",\n          \"refId\": \"A\"\n        }\n      ],\n      \"timeFrom\": null,\n      \"timeShift\": null,\n      \"title\": \"Requests\",\n      \"type\": \"stat\"\n    },\n    {\n      \"datasource\": \"Prometheus\",\n      \"fieldConfig\": {\n        \"defaults\": {\n          \"custom\": {},\n          \"decimals\": 2,\n          \"mappings\": [\n            {\n              \"from\": \"\",\n              \"id\": 0,\n              \"text\": \"N/A\",\n              \"to\": \"\",\n              \"type\": 1,\n              \"value\": \"null\"\n            }\n          ],\n          \"thresholds\": {\n            \"mode\": \"absolute\",\n            \"steps\": [\n              {\n                \"color\": \"rgb(255, 255, 255)\",\n                \"value\": null\n              }\n            ]\n          },\n          \"unit\": \"bytes\"\n        },\n        \"overrides\": []\n      },\n      \"gridPos\": {\n        \"h\": 2,\n        \"w\": 3,\n        \"x\": 6,\n        \"y\": 6\n      },\n      \"id\": 22,\n      \"options\": {\n        \"colorMode\": \"value\",\n        \"graphMode\": \"none\",\n        \"justifyMode\": \"center\",\n        \"orientation\": \"vertical\",\n        \"reduceOptions\": {\n          \"calcs\": [\n            \"lastNotNull\"\n          ],\n          \"fields\": \"\",\n          \"values\": false\n        },\n        \"textMode\": \"value\"\n      },\n      \"pluginVersion\": \"7.2.1\",\n      \"targets\": [\n        {\n          \"expr\": \"sum(kube_pod_container_resource_limits_memory_bytes{node=~\\\"^$Node$\\\"})\",\n          \"interval\": \"\",\n          \"legendFormat\": \"Limit\",\n          \"refId\": \"A\"\n        }\n      ],\n      \"timeFrom\": null,\n      \"timeShift\": null,\n      \"title\": \"Limits\",\n      \"type\": \"stat\"\n    },\n    {\n      \"datasource\": \"Prometheus\",\n      \"fieldConfig\": {\n        \"defaults\": {\n          \"custom\": {},\n          \"decimals\": 2,\n          \"mappings\": [\n            {\n              \"from\": \"\",\n              \"id\": 0,\n              \"text\": \"N/A\",\n              \"to\": \"\",\n              \"type\": 1,\n              \"value\": \"null\"\n            }\n          ],\n          \"thresholds\": {\n            \"mode\": \"absolute\",\n            \"steps\": [\n              {\n                \"color\": \"rgb(255, 255, 255)\",\n                \"value\": null\n              }\n            ]\n          },\n          \"unit\": \"bytes\"\n        },\n        \"overrides\": []\n      },\n      \"gridPos\": {\n        \"h\": 2,\n        \"w\": 3,\n        \"x\": 9,\n        \"y\": 6\n      },\n      \"id\": 7,\n      \"options\": {\n        \"colorMode\": \"value\",\n        \"graphMode\": \"none\",\n        \"justifyMode\": \"center\",\n        \"orientation\": \"vertical\",\n        \"reduceOptions\": {\n          \"calcs\": [\n            \"lastNotNull\"\n          ],\n          \"fields\": \"\",\n          \"values\": false\n        },\n        \"textMode\": \"value\"\n      },\n      \"pluginVersion\": \"7.2.1\",\n      \"targets\": [\n        {\n          \"expr\": \"sum (machine_memory_bytes{node=~\\\"^$Node$\\\"})\",\n          \"interval\": \"\",\n          \"legendFormat\": \"Total\",\n          \"refId\": \"A\"\n        }\n      ],\n      \"timeFrom\": null,\n      \"timeShift\": null,\n      \"title\": \"Total\",\n      \"type\": \"stat\"\n    },\n    {\n      \"cacheTimeout\": null,\n      \"datasource\": \"Prometheus\",\n      \"fieldConfig\": {\n        \"defaults\": {\n          \"custom\": {},\n          \"decimals\": 2,\n          \"mappings\": [\n            {\n              \"id\": 0,\n              \"op\": \"=\",\n              \"text\": \"N/A\",\n              \"type\": 1,\n              \"value\": \"null\"\n            }\n          ],\n          \"nullValueMode\": \"connected\",\n          \"thresholds\": {\n            \"mode\": \"absolute\",\n            \"steps\": [\n              {\n                \"color\": \"rgb(255, 255, 255)\",\n                \"value\": null\n              }\n            ]\n          },\n          \"unit\": \"core\"\n        },\n        \"overrides\": []\n      },\n      \"gridPos\": {\n        \"h\": 2,\n        \"w\": 3,\n        \"x\": 12,\n        \"y\": 6\n      },\n      \"id\": 12,\n      \"interval\": null,\n      \"links\": [],\n      \"maxDataPoints\": 100,\n      \"options\": {\n        \"colorMode\": \"value\",\n        \"graphMode\": \"none\",\n        \"justifyMode\": \"auto\",\n        \"orientation\": \"horizontal\",\n        \"reduceOptions\": {\n          \"calcs\": [\n            \"lastNotNull\"\n          ],\n          \"fields\": \"\",\n          \"values\": false\n        },\n        \"textMode\": \"auto\"\n      },\n      \"pluginVersion\": \"7.2.1\",\n      \"targets\": [\n        {\n          \"expr\": \"sum (rate(container_cpu_usage_seconds_total{id=\\\"/\\\",node=~\\\"^$Node$\\\"}[$Interval]))\",\n          \"interval\": \"10s\",\n          \"intervalFactor\": 1,\n          \"legendFormat\": \"\",\n          \"refId\": \"A\",\n          \"step\": 10\n        }\n      ],\n      \"title\": \"Used\",\n      \"type\": \"stat\"\n    },\n    {\n      \"cacheTimeout\": null,\n      \"datasource\": \"Prometheus\",\n      \"fieldConfig\": {\n        \"defaults\": {\n          \"custom\": {},\n          \"decimals\": 2,\n          \"mappings\": [\n            {\n              \"id\": 0,\n              \"op\": \"=\",\n              \"text\": \"N/A\",\n              \"type\": 1,\n              \"value\": \"null\"\n            }\n          ],\n          \"nullValueMode\": \"connected\",\n          \"thresholds\": {\n            \"mode\": \"absolute\",\n            \"steps\": [\n              {\n                \"color\": \"rgb(255, 255, 255)\",\n                \"value\": null\n              }\n            ]\n          },\n          \"unit\": \"core\"\n        },\n        \"overrides\": []\n      },\n      \"gridPos\": {\n        \"h\": 2,\n        \"w\": 3,\n        \"x\": 15,\n        \"y\": 6\n      },\n      \"id\": 23,\n      \"interval\": null,\n      \"links\": [],\n      \"maxDataPoints\": 100,\n      \"options\": {\n        \"colorMode\": \"value\",\n        \"graphMode\": \"none\",\n        \"justifyMode\": \"auto\",\n        \"orientation\": \"horizontal\",\n        \"reduceOptions\": {\n          \"calcs\": [\n            \"lastNotNull\"\n          ],\n          \"fields\": \"\",\n          \"values\": false\n        },\n        \"textMode\": \"auto\"\n      },\n      \"pluginVersion\": \"7.2.1\",\n      \"targets\": [\n        {\n          \"expr\": \"sum(kube_pod_container_resource_requests_cpu_cores{node=~\\\"^$Node$\\\"})\",\n          \"interval\": \"10s\",\n          \"intervalFactor\": 1,\n          \"legendFormat\": \"\",\n          \"refId\": \"A\",\n          \"step\": 10\n        }\n      ],\n      \"title\": \"Requests\",\n      \"type\": \"stat\"\n    },\n    {\n      \"cacheTimeout\": null,\n      \"datasource\": \"Prometheus\",\n      \"fieldConfig\": {\n        \"defaults\": {\n          \"custom\": {},\n          \"decimals\": 2,\n          \"mappings\": [\n            {\n              \"id\": 0,\n              \"op\": \"=\",\n              \"text\": \"N/A\",\n              \"type\": 1,\n              \"value\": \"null\"\n            }\n          ],\n          \"nullValueMode\": \"connected\",\n          \"thresholds\": {\n            \"mode\": \"absolute\",\n            \"steps\": [\n              {\n                \"color\": \"rgb(255, 255, 255)\",\n                \"value\": null\n              }\n            ]\n          },\n          \"unit\": \"core\"\n        },\n        \"overrides\": []\n      },\n      \"gridPos\": {\n        \"h\": 2,\n        \"w\": 3,\n        \"x\": 18,\n        \"y\": 6\n      },\n      \"id\": 24,\n      \"interval\": null,\n      \"links\": [],\n      \"maxDataPoints\": 100,\n      \"options\": {\n        \"colorMode\": \"value\",\n        \"graphMode\": \"none\",\n        \"justifyMode\": \"auto\",\n        \"orientation\": \"horizontal\",\n        \"reduceOptions\": {\n          \"calcs\": [\n            \"lastNotNull\"\n          ],\n          \"fields\": \"\",\n          \"values\": false\n        },\n        \"textMode\": \"auto\"\n      },\n      \"pluginVersion\": \"7.2.1\",\n      \"targets\": [\n        {\n          \"expr\": \"sum(kube_pod_container_resource_limits_cpu_cores{node=~\\\"^$Node$\\\"})\",\n          \"interval\": \"10s\",\n          \"intervalFactor\": 1,\n          \"legendFormat\": \"\",\n          \"refId\": \"A\",\n          \"step\": 10\n        }\n      ],\n      \"title\": \"Limts\",\n      \"type\": \"stat\"\n    },\n    {\n      \"cacheTimeout\": null,\n      \"datasource\": \"Prometheus\",\n      \"fieldConfig\": {\n        \"defaults\": {\n          \"custom\": {},\n          \"decimals\": 2,\n          \"mappings\": [\n            {\n              \"id\": 0,\n              \"op\": \"=\",\n              \"text\": \"N/A\",\n              \"type\": 1,\n              \"value\": \"null\"\n            }\n          ],\n          \"nullValueMode\": \"connected\",\n          \"thresholds\": {\n            \"mode\": \"absolute\",\n            \"steps\": [\n              {\n                \"color\": \"rgb(255, 255, 255)\",\n                \"value\": null\n              }\n            ]\n          },\n          \"unit\": \"core\"\n        },\n        \"overrides\": []\n      },\n      \"gridPos\": {\n        \"h\": 2,\n        \"w\": 3,\n        \"x\": 21,\n        \"y\": 6\n      },\n      \"id\": 14,\n      \"interval\": null,\n      \"links\": [],\n      \"maxDataPoints\": 100,\n      \"options\": {\n        \"colorMode\": \"value\",\n        \"graphMode\": \"none\",\n        \"justifyMode\": \"auto\",\n        \"orientation\": \"horizontal\",\n        \"reduceOptions\": {\n          \"calcs\": [\n            \"lastNotNull\"\n          ],\n          \"fields\": \"\",\n          \"values\": false\n        },\n        \"textMode\": \"auto\"\n      },\n      \"pluginVersion\": \"7.2.1\",\n      \"targets\": [\n        {\n          \"expr\": \"sum (machine_cpu_cores{kubernetes_io_hostname=~\\\"^$Node$\\\"})\",\n          \"interval\": \"10s\",\n          \"intervalFactor\": 1,\n          \"legendFormat\": \"\",\n          \"refId\": \"A\",\n          \"step\": 10\n        }\n      ],\n      \"title\": \"Total\",\n      \"type\": \"stat\"\n    },\n    {\n      \"datasource\": \"Prometheus\",\n      \"fieldConfig\": {\n        \"defaults\": {\n          \"custom\": {\n            \"align\": null,\n            \"displayMode\": \"auto\",\n            \"filterable\": false\n          },\n          \"mappings\": [\n            {\n              \"from\": \"\",\n              \"id\": 0,\n              \"text\": \"-\",\n              \"to\": \"\",\n              \"type\": 1,\n              \"value\": \"null\"\n            }\n          ],\n          \"thresholds\": {\n            \"mode\": \"absolute\",\n            \"steps\": [\n              {\n                \"color\": \"green\",\n                \"value\": null\n              },\n              {\n                \"color\": \"red\",\n                \"value\": 80\n              }\n            ]\n          }\n        },\n        \"overrides\": [\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"POD\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"custom.align\",\n                \"value\": \"center\"\n              },\n              {\n                \"id\": \"custom.width\"\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"SERVICE\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"custom.align\",\n                \"value\": \"center\"\n              },\n              {\n                \"id\": \"custom.width\"\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"CONTAINER\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"custom.align\",\n                \"value\": \"center\"\n              },\n              {\n                \"id\": \"custom.width\"\n              }\n            ]\n          }\n        ]\n      },\n      \"gridPos\": {\n        \"h\": 12,\n        \"w\": 7,\n        \"x\": 0,\n        \"y\": 8\n      },\n      \"id\": 28,\n      \"options\": {\n        \"showHeader\": true\n      },\n      \"pluginVersion\": \"7.2.1\",\n      \"targets\": [\n        {\n          \"expr\": \"count(kube_pod_info{node=~\\\"^$Node$\\\"}) by(namespace)\",\n          \"format\": \"table\",\n          \"instant\": true,\n          \"interval\": \"\",\n          \"intervalFactor\": 1,\n          \"legendFormat\": \"\",\n          \"refId\": \"A\"\n        },\n        {\n          \"expr\": \"count(kube_service_info{}) by(namespace)\",\n          \"format\": \"table\",\n          \"interval\": \"\",\n          \"legendFormat\": \"\",\n          \"refId\": \"B\"\n        },\n        {\n          \"expr\": \"count(count(kube_pod_container_info{}) by(container,namespace)) by(namespace)\",\n          \"format\": \"table\",\n          \"interval\": \"\",\n          \"legendFormat\": \"\",\n          \"refId\": \"C\"\n        }\n      ],\n      \"timeFrom\": null,\n      \"timeShift\": null,\n      \"title\": \"Namespaces\",\n      \"transformations\": [\n        {\n          \"id\": \"seriesToColumns\",\n          \"options\": {\n            \"byField\": \"namespace\"\n          }\n        },\n        {\n          \"id\": \"organize\",\n          \"options\": {\n            \"excludeByName\": {\n              \"Time\": true\n            },\n            \"indexByName\": {},\n            \"renameByName\": {\n              \"Value #A\": \"POD\",\n              \"Value #B\": \"SERVICE\",\n              \"Value #C\": \"CONTAINER\",\n              \"namespace\": \"NAMESPACES\"\n            }\n          }\n        }\n      ],\n      \"type\": \"table\"\n    },\n    {\n      \"datasource\": \"Prometheus\",\n      \"fieldConfig\": {\n        \"defaults\": {\n          \"custom\": {\n            \"align\": null,\n            \"filterable\": false\n          },\n          \"mappings\": [\n            {\n              \"from\": \"\",\n              \"id\": 0,\n              \"text\": \"N/A\",\n              \"to\": \"\",\n              \"type\": 1,\n              \"value\": \"null\"\n            }\n          ],\n          \"thresholds\": {\n            \"mode\": \"absolute\",\n            \"steps\": [\n              {\n                \"color\": \"green\",\n                \"value\": null\n              },\n              {\n                \"color\": \"red\",\n                \"value\": 80\n              }\n            ]\n          }\n        },\n        \"overrides\": [\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"POD\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"custom.align\",\n                \"value\": \"center\"\n              },\n              {\n                \"id\": \"custom.width\"\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"상태\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"custom.align\",\n                \"value\": \"center\"\n              },\n              {\n                \"id\": \"custom.width\"\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"CPU 사용량\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"custom.align\",\n                \"value\": \"center\"\n              },\n              {\n                \"id\": \"custom.width\"\n              },\n              {\n                \"id\": \"unit\",\n                \"value\": \"core\"\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"CPU Total\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"custom.align\",\n                \"value\": \"center\"\n              },\n              {\n                \"id\": \"custom.width\"\n              },\n              {\n                \"id\": \"unit\",\n                \"value\": \"core\"\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"CPU 요쳥량\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"custom.align\",\n                \"value\": \"center\"\n              },\n              {\n                \"id\": \"custom.width\"\n              },\n              {\n                \"id\": \"unit\",\n                \"value\": \"core\"\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"CPU 제한량\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"custom.align\",\n                \"value\": \"center\"\n              },\n              {\n                \"id\": \"custom.width\"\n              },\n              {\n                \"id\": \"unit\",\n                \"value\": \"core\"\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"메모리 사용량\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"custom.align\",\n                \"value\": \"center\"\n              },\n              {\n                \"id\": \"custom.width\"\n              },\n              {\n                \"id\": \"unit\",\n                \"value\": \"bytes\"\n              },\n              {\n                \"id\": \"decimals\",\n                \"value\": 1\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"메모리 요청량\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"custom.align\",\n                \"value\": \"center\"\n              },\n              {\n                \"id\": \"custom.width\"\n              },\n              {\n                \"id\": \"unit\",\n                \"value\": \"bytes\"\n              },\n              {\n                \"id\": \"decimals\",\n                \"value\": 1\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"메모리 제한량\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"custom.align\",\n                \"value\": \"center\"\n              },\n              {\n                \"id\": \"custom.width\"\n              },\n              {\n                \"id\": \"unit\",\n                \"value\": \"bytes\"\n              },\n              {\n                \"id\": \"decimals\",\n                \"value\": 1\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"메모리 Total\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"custom.align\",\n                \"value\": \"center\"\n              },\n              {\n                \"id\": \"custom.width\"\n              },\n              {\n                \"id\": \"unit\",\n                \"value\": \"bytes\"\n              },\n              {\n                \"id\": \"decimals\",\n                \"value\": 1\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"디스크 사용량\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"custom.align\",\n                \"value\": \"center\"\n              },\n              {\n                \"id\": \"custom.width\"\n              },\n              {\n                \"id\": \"unit\",\n                \"value\": \"bytes\"\n              },\n              {\n                \"id\": \"decimals\",\n                \"value\": 1\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"디스크 Total\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"custom.align\",\n                \"value\": \"center\"\n              },\n              {\n                \"id\": \"custom.width\"\n              },\n              {\n                \"id\": \"unit\",\n                \"value\": \"bytes\"\n              },\n              {\n                \"id\": \"decimals\",\n                \"value\": 1\n              }\n            ]\n          }\n        ]\n      },\n      \"gridPos\": {\n        \"h\": 12,\n        \"w\": 17,\n        \"x\": 7,\n        \"y\": 8\n      },\n      \"id\": 34,\n      \"options\": {\n        \"showHeader\": true\n      },\n      \"pluginVersion\": \"7.2.1\",\n      \"targets\": [\n        {\n          \"expr\": \"count(kube_pod_info{created_by_kind!~\\\"\u003cnone\u003e|Job\\\",node=~\\\"^$Node$\\\"}) by (node)\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"POD\",\n          \"refId\": \"A\"\n        },\n        {\n          \"expr\": \"kube_node_status_condition{status=\\\"true\\\",node=~\\\"^$Node$\\\"}  == 1\",\n          \"format\": \"table\",\n          \"hide\": false,\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"상태\",\n          \"refId\": \"B\"\n        },\n        {\n          \"expr\": \"sum (rate(container_cpu_usage_seconds_total{id=\\\"/\\\",node=~\\\"^$Node$\\\"}[2m])) by (node)\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"CPU 사용량\",\n          \"refId\": \"C\"\n        },\n        {\n          \"expr\": \"kube_node_status_capacity_cpu_cores{node=~\\\"^$Node$\\\"} - 0\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"CPU 요청량\",\n          \"refId\": \"E\"\n        },\n        {\n          \"expr\": \"sum(kube_pod_container_resource_limits_cpu_cores{node=~\\\"^$Node$\\\"}) by (node)\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"CPU 제한량\",\n          \"refId\": \"F\"\n        },\n        {\n          \"expr\": \"kube_node_status_capacity_cpu_cores{node=~\\\"^$Node$\\\"} - 0\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"CPU Total\",\n          \"refId\": \"D\"\n        },\n        {\n          \"expr\": \"sum (container_memory_working_set_bytes{id=\\\"/\\\",node=~\\\"^$Node$\\\"}) by (node)\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"메모리 사용량\",\n          \"refId\": \"G\"\n        },\n        {\n          \"expr\": \"sum(kube_pod_container_resource_requests_memory_bytes{node=~\\\"^$Node$\\\"}) by (node)\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"메모리 요청량\",\n          \"refId\": \"I\"\n        },\n        {\n          \"expr\": \"sum(kube_pod_container_resource_limits_memory_bytes{node=~\\\"^$Node$\\\"}) by (node)\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"메모리 제한량\",\n          \"refId\": \"J\"\n        },\n        {\n          \"expr\": \"kube_node_status_capacity_memory_bytes{node=~\\\"^$Node$\\\"} - 0\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"메모리 Total\",\n          \"refId\": \"H\"\n        },\n        {\n          \"expr\": \"sum (container_fs_usage_bytes{device=~\\\"^/dev/.*$\\\",id=\\\"/\\\",node=~\\\"^$Node$\\\"}) by (node)\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"디스크 사용량\",\n          \"refId\": \"K\"\n        },\n        {\n          \"expr\": \"sum (container_fs_limit_bytes{device=~\\\"^/dev/.*$\\\",id=\\\"/\\\",node=~\\\"^$Node$\\\"}) by (node)\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"디스크 Total\",\n          \"refId\": \"L\"\n        }\n      ],\n      \"timeFrom\": null,\n      \"timeShift\": null,\n      \"title\": \"Node Total Usage\",\n      \"transformations\": [\n        {\n          \"id\": \"seriesToColumns\",\n          \"options\": {\n            \"byField\": \"node\"\n          }\n        },\n        {\n          \"id\": \"organize\",\n          \"options\": {\n            \"excludeByName\": {\n              \"Time\": true,\n              \"Value #B\": true,\n              \"__name__\": true,\n              \"app_kubernetes_io_instance\": true,\n              \"app_kubernetes_io_managed_by\": true,\n              \"app_kubernetes_io_name\": true,\n              \"clusterid\": true,\n              \"endpoint\": true,\n              \"helm_sh_chart\": true,\n              \"instance\": true,\n              \"job\": true,\n              \"kubernetes_name\": true,\n              \"kubernetes_namespace\": true,\n              \"kubernetes_node\": true,\n              \"namespace\": true,\n              \"pod\": true,\n              \"service\": true,\n              \"status\": true\n            },\n            \"indexByName\": {},\n            \"renameByName\": {\n              \"Value #A\": \"POD\",\n              \"Value #B\": \"\",\n              \"Value #C\": \"CPU 사용량\",\n              \"Value #D\": \"CPU Total\",\n              \"Value #E\": \"CPU 요쳥량\",\n              \"Value #F\": \"CPU 제한량\",\n              \"Value #G\": \"메모리 사용량\",\n              \"Value #H\": \"메모리 Total\",\n              \"Value #I\": \"메모리 요청량\",\n              \"Value #J\": \"메모리 제한량\",\n              \"Value #K\": \"디스크 사용량\",\n              \"Value #L\": \"디스크 Total\",\n              \"condition\": \"상태\",\n              \"node\": \"노드\"\n            }\n          }\n        }\n      ],\n      \"type\": \"table\"\n    },\n    {\n      \"collapsed\": false,\n      \"datasource\": null,\n      \"gridPos\": {\n        \"h\": 1,\n        \"w\": 24,\n        \"x\": 0,\n        \"y\": 20\n      },\n      \"id\": 26,\n      \"panels\": [],\n      \"title\": \"Workload Usage\",\n      \"type\": \"row\"\n    },\n    {\n      \"datasource\": \"Prometheus\",\n      \"fieldConfig\": {\n        \"defaults\": {\n          \"custom\": {\n            \"align\": \"center\",\n            \"filterable\": false\n          },\n          \"mappings\": [\n            {\n              \"from\": \"\",\n              \"id\": 0,\n              \"text\": \"-\",\n              \"to\": \"\",\n              \"type\": 1,\n              \"value\": \"null\"\n            },\n            {\n              \"from\": \"\",\n              \"id\": 1,\n              \"text\": \"-\",\n              \"to\": \"\",\n              \"type\": 1,\n              \"value\": \"NaN\"\n            }\n          ],\n          \"thresholds\": {\n            \"mode\": \"absolute\",\n            \"steps\": [\n              {\n                \"color\": \"green\",\n                \"value\": null\n              },\n              {\n                \"color\": \"red\",\n                \"value\": 80\n              }\n            ]\n          }\n        },\n        \"overrides\": [\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"워크로드\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"custom.width\"\n              },\n              {\n                \"id\": \"custom.align\",\n                \"value\": null\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"CPU 사용률\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"unit\",\n                \"value\": \"percent\"\n              },\n              {\n                \"id\": \"decimals\",\n                \"value\": 2\n              },\n              {\n                \"id\": \"min\",\n                \"value\": 0\n              },\n              {\n                \"id\": \"max\",\n                \"value\": 100\n              },\n              {\n                \"id\": \"custom.displayMode\",\n                \"value\": \"gradient-gauge\"\n              },\n              {\n                \"id\": \"thresholds\",\n                \"value\": {\n                  \"mode\": \"absolute\",\n                  \"steps\": [\n                    {\n                      \"color\": \"green\",\n                      \"value\": null\n                    },\n                    {\n                      \"color\": \"orange\",\n                      \"value\": 60\n                    },\n                    {\n                      \"color\": \"red\",\n                      \"value\": 80\n                    }\n                  ]\n                }\n              },\n              {\n                \"id\": \"custom.width\",\n                \"value\": 150\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"CPU 사용량\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"unit\",\n                \"value\": \"core\"\n              },\n              {\n                \"id\": \"decimals\",\n                \"value\": 4\n              },\n              {\n                \"id\": \"min\",\n                \"value\": 0\n              },\n              {\n                \"id\": \"max\",\n                \"value\": 100\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"CPU 요청량\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"unit\",\n                \"value\": \"core\"\n              },\n              {\n                \"id\": \"decimals\",\n                \"value\": 2\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"CPU 제한량\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"unit\",\n                \"value\": \"core\"\n              },\n              {\n                \"id\": \"decimals\",\n                \"value\": 2\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"메모리 사용률(WSS)\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"custom.width\"\n              },\n              {\n                \"id\": \"custom.displayMode\",\n                \"value\": \"gradient-gauge\"\n              },\n              {\n                \"id\": \"min\",\n                \"value\": 0\n              },\n              {\n                \"id\": \"max\",\n                \"value\": 100\n              },\n              {\n                \"id\": \"unit\",\n                \"value\": \"percent\"\n              },\n              {\n                \"id\": \"decimals\",\n                \"value\": 2\n              },\n              {\n                \"id\": \"thresholds\",\n                \"value\": {\n                  \"mode\": \"absolute\",\n                  \"steps\": [\n                    {\n                      \"color\": \"green\",\n                      \"value\": null\n                    },\n                    {\n                      \"color\": \"orange\",\n                      \"value\": 70\n                    },\n                    {\n                      \"color\": \"red\",\n                      \"value\": 85\n                    }\n                  ]\n                }\n              },\n              {\n                \"id\": \"mappings\",\n                \"value\": [\n                  {\n                    \"from\": \"\",\n                    \"id\": 0,\n                    \"text\": \"-\",\n                    \"to\": \"\",\n                    \"type\": 1,\n                    \"value\": \"null\"\n                  }\n                ]\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"메모리 사용량(WSS)\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"custom.width\"\n              },\n              {\n                \"id\": \"unit\",\n                \"value\": \"bytes\"\n              },\n              {\n                \"id\": \"decimals\",\n                \"value\": 2\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"메모리  사용률(RSS)\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"custom.width\"\n              },\n              {\n                \"id\": \"custom.displayMode\",\n                \"value\": \"gradient-gauge\"\n              },\n              {\n                \"id\": \"unit\",\n                \"value\": \"percent\"\n              },\n              {\n                \"id\": \"min\",\n                \"value\": 0\n              },\n              {\n                \"id\": \"max\",\n                \"value\": 100\n              },\n              {\n                \"id\": \"decimals\",\n                \"value\": 2\n              },\n              {\n                \"id\": \"thresholds\",\n                \"value\": {\n                  \"mode\": \"absolute\",\n                  \"steps\": [\n                    {\n                      \"color\": \"green\",\n                      \"value\": null\n                    },\n                    {\n                      \"color\": \"orange\",\n                      \"value\": 70\n                    },\n                    {\n                      \"color\": \"red\",\n                      \"value\": 85\n                    }\n                  ]\n                }\n              },\n              {\n                \"id\": \"mappings\",\n                \"value\": [\n                  {\n                    \"from\": \"\",\n                    \"id\": 0,\n                    \"text\": \"-\",\n                    \"to\": \"\",\n                    \"type\": 1,\n                    \"value\": \"\"\n                  }\n                ]\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"메모리 사용량(RSS)\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"custom.width\"\n              },\n              {\n                \"id\": \"unit\",\n                \"value\": \"bytes\"\n              },\n              {\n                \"id\": \"decimals\",\n                \"value\": 2\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"메모리 요청량\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"unit\",\n                \"value\": \"bytes\"\n              },\n              {\n                \"id\": \"decimals\",\n                \"value\": 0\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"메모리 제한량\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"unit\",\n                \"value\": \"bytes\"\n              },\n              {\n                \"id\": \"decimals\",\n                \"value\": 0\n              }\n            ]\n          },\n          {\n            \"matcher\": {\n              \"id\": \"byName\",\n              \"options\": \"디스크 사용량\"\n            },\n            \"properties\": [\n              {\n                \"id\": \"unit\",\n                \"value\": \"bytes\"\n              },\n              {\n                \"id\": \"decimals\",\n                \"value\": 2\n              }\n            ]\n          }\n        ]\n      },\n      \"gridPos\": {\n        \"h\": 25,\n        \"w\": 24,\n        \"x\": 0,\n        \"y\": 21\n      },\n      \"id\": 36,\n      \"options\": {\n        \"frameIndex\": 1,\n        \"showHeader\": true,\n        \"sortBy\": [\n          {\n            \"desc\": false,\n            \"displayName\": \"워크로드\"\n          }\n        ]\n      },\n      \"pluginVersion\": \"7.2.1\",\n      \"targets\": [\n        {\n          \"expr\": \"sum(rate(container_cpu_usage_seconds_total{container=~\\\"$Container\\\",container!=\\\"\\\",container!=\\\"POD\\\",namespace=~\\\"$NameSpace\\\"}[$Interval])) by (container) / (sum(container_spec_cpu_quota{container=~\\\"$Container\\\",container!=\\\"\\\",container!=\\\"POD\\\",namespace=~\\\"$NameSpace\\\"}/container_spec_cpu_period{container=~\\\"$Container\\\",container!=\\\"\\\",container!=\\\"POD\\\",namespace=~\\\"$NameSpace\\\"}) by (container)) * 100\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"CPU 사용률\",\n          \"refId\": \"A\"\n        },\n        {\n          \"expr\": \"sum(rate(container_cpu_usage_seconds_total{container=~\\\"$Container\\\",container!=\\\"\\\",container!=\\\"POD\\\",namespace=~\\\"$NameSpace\\\"}[$Interval])) by (container)\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"CPU 사용량\",\n          \"refId\": \"B\"\n        },\n        {\n          \"expr\": \"sum(kube_pod_container_resource_requests_cpu_cores{container=~\\\"$Container\\\",container!=\\\"\\\",container!=\\\"POD\\\",namespace=~\\\"$NameSpace\\\"}) by (container)\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"CPU 요청량\",\n          \"refId\": \"C\"\n        },\n        {\n          \"expr\": \"sum(kube_pod_container_resource_limits_cpu_cores{container=~\\\"$Container\\\",container!=\\\"\\\",container!=\\\"POD\\\",namespace=~\\\"$NameSpace\\\"}) by (container)\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"CPU 제한량\",\n          \"refId\": \"D\"\n        },\n        {\n          \"expr\": \"sum(container_memory_working_set_bytes{container=~\\\"$Container\\\",container!=\\\"\\\",container!=\\\"POD\\\",namespace=~\\\"$NameSpace\\\"}) by (container)/ sum(container_spec_memory_limit_bytes{container=~\\\"$Container\\\",container!=\\\"\\\",container!=\\\"POD\\\",namespace=~\\\"$NameSpace\\\"}) by (container) * 100\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"메모리 사용률(WSS)\",\n          \"refId\": \"E\"\n        },\n        {\n          \"expr\": \"sum (container_memory_working_set_bytes{container =~\\\"$Container\\\",container !=\\\"\\\",container!=\\\"POD\\\",namespace=~\\\"$NameSpace\\\"}) by (container)\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"메모리 사용량(WSS)\",\n          \"refId\": \"F\"\n        },\n        {\n          \"expr\": \"sum (container_memory_rss{container =~\\\"$Container\\\",container !=\\\"\\\",container!=\\\"POD\\\",namespace=~\\\"$NameSpace\\\"}) by (container)/ sum(container_spec_memory_limit_bytes{container =~\\\"$Container\\\",container !=\\\"\\\",container!=\\\"POD\\\",namespace=~\\\"$NameSpace\\\"}) by (container) * 100\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"메모리 사용률(RSS)\",\n          \"refId\": \"G\"\n        },\n        {\n          \"expr\": \"sum (container_memory_rss{container =~\\\"$Container\\\",container !=\\\"\\\",container!=\\\"POD\\\",namespace=~\\\"$NameSpace\\\"}) by (container)\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"메모리 사용량(RSS)\",\n          \"refId\": \"H\"\n        },\n        {\n          \"expr\": \"sum(kube_pod_container_resource_requests_memory_bytes{container =~\\\"$Container\\\",container !=\\\"\\\",container!=\\\"POD\\\",namespace=~\\\"$NameSpace\\\"}) by (container)\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"메모리 요청량\",\n          \"refId\": \"I\"\n        },\n        {\n          \"expr\": \"sum(kube_pod_container_resource_limits_memory_bytes{container =~\\\"$Container\\\",container !=\\\"\\\",container!=\\\"POD\\\",namespace=~\\\"$NameSpace\\\"}) by (container)\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"총 메모리 제한량\",\n          \"refId\": \"J\"\n        },\n        {\n          \"expr\": \"sum(container_fs_usage_bytes{container =~\\\"$Container\\\",container !=\\\"\\\",container!=\\\"POD\\\",namespace=~\\\"$NameSpace\\\"}) by (container)\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"디스크 사용량\",\n          \"refId\": \"K\"\n        },\n        {\n          \"expr\": \"count(kube_pod_container_info{container =~\\\"$Container\\\",container !=\\\"\\\",container!=\\\"POD\\\",namespace=~\\\"$NameSpace\\\"}) by(container) - 0\",\n          \"format\": \"table\",\n          \"instant\": false,\n          \"interval\": \"\",\n          \"legendFormat\": \"컨테이너 수\",\n          \"refId\": \"L\"\n        }\n      ],\n      \"timeFrom\": null,\n      \"timeShift\": null,\n      \"title\": \"워크로드 상세 정보\",\n      \"transformations\": [\n        {\n          \"id\": \"seriesToColumns\",\n          \"options\": {\n            \"byField\": \"container\"\n          }\n        },\n        {\n          \"id\": \"organize\",\n          \"options\": {\n            \"excludeByName\": {\n              \"Time\": true\n            },\n            \"indexByName\": {},\n            \"renameByName\": {\n              \"Time\": \"\",\n              \"Value #A\": \"CPU 사용률\",\n              \"Value #B\": \"CPU 사용량\",\n              \"Value #C\": \"CPU 요청량\",\n              \"Value #D\": \"CPU 제한량\",\n              \"Value #E\": \"메모리 사용률(WSS)\",\n              \"Value #F\": \"메모리 사용량(WSS)\",\n              \"Value #G\": \"메모리  사용률(RSS)\",\n              \"Value #H\": \"메모리 사용량(RSS)\",\n              \"Value #I\": \"메모리 요청량\",\n              \"Value #J\": \"메모리 제한량\",\n              \"Value #K\": \"디스크 사용량\",\n              \"Value #L\": \"컨테이너 수\",\n              \"container\": \"워크로드\"\n            }\n          }\n        }\n      ],\n      \"type\": \"table\"\n    }\n  ],\n  \"refresh\": \"10s\",\n  \"schemaVersion\": 26,\n  \"style\": \"dark\",\n  \"tags\": [],\n  \"templating\": {\n    \"list\": [\n      {\n        \"allValue\": \"\",\n        \"current\": {\n          \"selected\": false,\n          \"text\": \"All\",\n          \"value\": \"$__all\"\n        },\n        \"datasource\": \"Prometheus\",\n        \"definition\": \"label_values(node)\",\n        \"hide\": 0,\n        \"includeAll\": true,\n        \"label\": null,\n        \"multi\": false,\n        \"name\": \"Node\",\n        \"options\": [],\n        \"query\": \"label_values(node)\",\n        \"refresh\": 1,\n        \"regex\": \"\",\n        \"skipUrlSync\": false,\n        \"sort\": 5,\n        \"tagValuesQuery\": \"\",\n        \"tags\": [],\n        \"tagsQuery\": \"\",\n        \"type\": \"query\",\n        \"useTags\": false\n      },\n      {\n        \"allValue\": null,\n        \"current\": {\n          \"selected\": false,\n          \"text\": \"All\",\n          \"value\": \"$__all\"\n        },\n        \"datasource\": \"Prometheus\",\n        \"definition\": \"label_values(namespace)\",\n        \"hide\": 0,\n        \"includeAll\": true,\n        \"label\": null,\n        \"multi\": false,\n        \"name\": \"NameSpace\",\n        \"options\": [],\n        \"query\": \"label_values(namespace)\",\n        \"refresh\": 1,\n        \"regex\": \"\",\n        \"skipUrlSync\": false,\n        \"sort\": 5,\n        \"tagValuesQuery\": \"\",\n        \"tags\": [],\n        \"tagsQuery\": \"\",\n        \"type\": \"query\",\n        \"useTags\": false\n      },\n      {\n        \"allValue\": null,\n        \"current\": {\n          \"selected\": false,\n          \"text\": \"All\",\n          \"value\": \"$__all\"\n        },\n        \"datasource\": \"Prometheus\",\n        \"definition\": \"label_values(kube_pod_container_info{namespace=~\\\"$NameSpace\\\"},container)\",\n        \"hide\": 0,\n        \"includeAll\": true,\n        \"label\": null,\n        \"multi\": false,\n        \"name\": \"Container\",\n        \"options\": [],\n        \"query\": \"label_values(kube_pod_container_info{namespace=~\\\"$NameSpace\\\"},container)\",\n        \"refresh\": 1,\n        \"regex\": \"\",\n        \"skipUrlSync\": false,\n        \"sort\": 5,\n        \"tagValuesQuery\": \"\",\n        \"tags\": [],\n        \"tagsQuery\": \"\",\n        \"type\": \"query\",\n        \"useTags\": false\n      },\n      {\n        \"allValue\": null,\n        \"current\": {\n          \"selected\": false,\n          \"text\": \"All\",\n          \"value\": \"$__all\"\n        },\n        \"datasource\": \"Prometheus\",\n        \"definition\": \"label_values(kube_pod_container_info{namespace=~\\\"$NameSpace\\\",container=~\\\"$Container\\\"},pod)\",\n        \"hide\": 0,\n        \"includeAll\": true,\n        \"label\": null,\n        \"multi\": false,\n        \"name\": \"Pod\",\n        \"options\": [],\n        \"query\": \"label_values(kube_pod_container_info{namespace=~\\\"$NameSpace\\\",container=~\\\"$Container\\\"},pod)\",\n        \"refresh\": 1,\n        \"regex\": \"\",\n        \"skipUrlSync\": false,\n        \"sort\": 5,\n        \"tagValuesQuery\": \"\",\n        \"tags\": [],\n        \"tagsQuery\": \"\",\n        \"type\": \"query\",\n        \"useTags\": false\n      },\n      {\n        \"auto\": false,\n        \"auto_count\": 30,\n        \"auto_min\": \"10s\",\n        \"current\": {\n          \"selected\": false,\n          \"text\": \"2m\",\n          \"value\": \"2m\"\n        },\n        \"hide\": 0,\n        \"label\": null,\n        \"name\": \"Interval\",\n        \"options\": [\n          {\n            \"selected\": true,\n            \"text\": \"2m\",\n            \"value\": \"2m\"\n          },\n          {\n            \"selected\": false,\n            \"text\": \"10m\",\n            \"value\": \"10m\"\n          },\n          {\n            \"selected\": false,\n            \"text\": \"30m\",\n            \"value\": \"30m\"\n          },\n          {\n            \"selected\": false,\n            \"text\": \"1h\",\n            \"value\": \"1h\"\n          },\n          {\n            \"selected\": false,\n            \"text\": \"6h\",\n            \"value\": \"6h\"\n          },\n          {\n            \"selected\": false,\n            \"text\": \"12h\",\n            \"value\": \"12h\"\n          },\n          {\n            \"selected\": false,\n            \"text\": \"1d\",\n            \"value\": \"1d\"\n          }\n        ],\n        \"query\": \"2m,10m,30m,1h,6h,12h,1d\",\n        \"queryValue\": \"\",\n        \"refresh\": 2,\n        \"skipUrlSync\": false,\n        \"type\": \"interval\"\n      }\n    ]\n  },\n  \"time\": {\n    \"from\": \"now-30m\",\n    \"to\": \"now\"\n  },\n  \"timepicker\": {\n    \"refresh_intervals\": [\n      \"5s\",\n      \"10s\",\n      \"30s\",\n      \"1m\",\n      \"5m\",\n      \"15m\",\n      \"30m\",\n      \"1h\",\n      \"2h\",\n      \"1d\"\n    ]\n  },\n  \"timezone\": \"browser\",\n  \"title\": \"Cloud-Barista\",\n  \"uid\": \"tLmDab5Mp\",\n  \"version\": 1\n}"
+---
+# Source: cloud-barista/charts/cb-dragonfly/charts/kafka/templates/tests/test_topic_create_consume_produce.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "cloud-barista-test-topic-create-consume-produce"
+  annotations:
+    "helm.sh/hook": test-success
+spec:
+  containers:
+  - name: cloud-barista-test-consume
+    image: confluentinc/cp-kafka:5.0.1
+    command:
+    - sh
+    - -c
+    - |
+      # Create the topic
+      kafka-topics --zookeeper cloud-barista-zookeeper:2181 --topic helm-test-topic-create-consume-produce --create --partitions 1 --replication-factor 1 --if-not-exists && \
+      # Create a message
+      MESSAGE="`date -u`" && \
+      # Produce a test message to the topic
+      echo "$MESSAGE" | kafka-console-producer --broker-list cb-dragonfly-kafka:9092 --topic helm-test-topic-create-consume-produce && \
+      # Consume a test message from the topic
+      kafka-console-consumer --bootstrap-server cb-dragonfly-kafka-headless:9092 --topic helm-test-topic-create-consume-produce --from-beginning --timeout-ms 2000 --max-messages 1 | grep "$MESSAGE"
+  restartPolicy: Never
