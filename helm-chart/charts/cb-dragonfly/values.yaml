@@ -17,7 +17,7 @@ influxdb:
 
 kapacitor:
   enabled: true
-  fullnameOverride: "cb-dragonfly-kapacitor"
+  nameOverride: "cb-dragonfly-kapacitor"
   envVars:
     #KAPACITOR_INFLUXDB_0_URLS_0: http://cb-dragonfly-influxdb:8086
     KAPACITOR_INFLUXDB_0_USERNAME: cbmon
@@ -27,7 +27,7 @@ kapacitor:
     size: "8Gi"
     accessModes: "ReadWriteMany"
   influxURL: http://cb-dragonfly-influxdb:8086
-  namespaceOverride: cloud-barista
+  #  namespaceOverride: cloud-barista
 
 ## external : kafka
 
@@ -37,8 +37,13 @@ kafka:
   fullnameOverride: "cb-dragonfly-kafka"
   external:
     enabled: true
+    dns:
+      useInternal: true
+      useExternal: true
     servicePort: 9092
+    firstListenerPort: 32000
     type: NodePort
+    domain: "cb-dragonfly-kafka.cloud-barista.svc.cluster.local"
   persistence:
     enabled: false
     size: "1Gi"
@@ -53,11 +58,14 @@ kafka:
       enabled: false
     operator:
       enabled: false
-    zookeeper:
-      enabled: true
+  zookeeper:
+    enabled: false
+      #     url: "cb-dragonfly-zookeeper:2181"
+      #     fullnameOverride: "cb-dragonfly-zookeeper"
+      #     port: 2181
   configurationOverrides:
     KAFKA_ADVERTISED_LISTENERS: cb-dragonfly-kafka
-    KAFKA_ZOOKEEPER_CONNECT: "cb-dragonfly-zookeeper:2181"
+    zookeeper.connect: "cb-dragonfly-zookeeper:2181"
     KAFKA_DELETE_TOPIC_ENABLE: true
     KAFKA_LOG_RETENTION_MS: 10000
     KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 5000
@@ -79,12 +87,10 @@ zookeeper:
     jmx:
       enabled: false
   zookeeper:
-    enabled: false
+   enabled: false
   prometheus:
     serviceMonitor:
       enabled: false
-  env:
-    ZOO_AUTOPURGE_SNAPRETAINCOUNT: 1
 
 
 ## cb-dragonfly custom variables
