@@ -106,7 +106,7 @@ replicaCount: 1
 
 image:
   repository: cloudbaristaorg/cb-dragonfly
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 imagePullSecrets: []
 nameOverride: ""
