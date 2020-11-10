@@ -16,12 +16,15 @@ kapacitor:
 # kafka connection info
 kafka:
   endpoint_url: cb-dragonfly-kafka
+  external_ip: 210.207.104.136
+  external_port: 32000
+  internal_port: 9092
 
 # collect manager configuration info
 collectManager:
-  collector_ip: 127.0.0.1 # local access endpoint to cb-dragonfly API server
-  collector_port: 8094    # udp port
-  collector_group_count: 1      # default collector group count
+  collector_ip: 210.207.104.106  # local access endpoint to cb-dragonfly API server
+  collector_port: 8094           # udp port
+  collector_group_count: 1       # default collector group count
 
 # api server configuration info
 apiServer:
@@ -29,7 +32,7 @@ apiServer:
 
 # monitoring interval configuration info
 monitoring:
-  agent_interval: 2        # agent interval (s)
-  collector_interval: 10   # aggregate interval (s)
-  max_host_count:  10      # maximum host count per collector
-  monitoring_policy: 0     # 0 => The number of agent, 1 => csp group
+  agent_interval: 2                   # agent interval (s)
+  collector_interval: 10             # aggregate interval (s)
+  max_host_count:  10                # maximum host count per collector
+  monitoring_policy: "agentCount"    # "agentCount" => The number of agent, "csp" => csp group
